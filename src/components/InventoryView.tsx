@@ -14,7 +14,9 @@ import {
   Check,
   PackageOpen,
   Sparkles,
-  Percent
+  Percent,
+  AlertTriangle,
+  X
 } from 'lucide-react'
 import { StockItem, DofusItem, CrushRecord } from '../types'
 import { formatKamas, formatDate } from '../utils/formatters'
@@ -28,6 +30,7 @@ interface InventoryViewProps {
   onOpenSaleModal: (item: StockItem) => void
   onOpenCrushModal?: (item: StockItem) => void
   onDeleteBatch: (batchId: string) => void
+  onClearBatchesByCategory?: (category: string) => void
   onUpdateRefPrice: (ankama_id: number, price: number) => void
   onOpenHDVModal: () => void
 }
@@ -41,6 +44,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   onOpenSaleModal,
   onOpenCrushModal,
   onDeleteBatch,
+  onClearBatchesByCategory,
   onUpdateRefPrice,
   onOpenHDVModal
 }) => {
@@ -51,6 +55,8 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   const [expandedItemId, setExpandedItemId] = useState<number | null>(null)
   const [editingRefPriceId, setEditingRefPriceId] = useState<number | null>(null)
   const [tempRefPrice, setTempRefPrice] = useState<string>('')
+  const [isPurgeModalOpen, setIsPurgeModalOpen] = useState(false)
+  const [selectedPurgeCategory, setSelectedPurgeCategory] = useState<string | null>(null)
 
   const filtered = stockItems.filter((item) => {
     const matchesSearch =
@@ -72,6 +78,63 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
   const totalStockValue = stockItems.reduce((acc, it) => acc + it.total_value, 0)
   const totalUnits = stockItems.reduce((acc, it) => acc + it.total_quantity, 0)
+
+  // Category counts & values for purge options
+  const resources = stockItems.filter(i => i.category === 'resources')
+  const equipment = stockItems.filter(i => i.category === 'equipment')
+  const runes = stockItems.filter(i => i.category === 'runes')
+  const consumables = stockItems.filter(i => i.category === 'consumables')
+
+  const purgeOptions = [
+    {
+      id: 'all',
+      label: '🗑️ Tout vider (Inventaire complet)',
+      count: stockItems.length,
+      units: totalUnits,
+      value: totalStockValue,
+      color: 'rose'
+    },
+    {
+      id: 'resources',
+      label: '🌿 Vider toutes les Ressources',
+      count: resources.length,
+      units: resources.reduce((acc, it) => acc + it.total_quantity, 0),
+      value: resources.reduce((acc, it) => acc + it.total_value, 0),
+      color: 'emerald'
+    },
+    {
+      id: 'equipment',
+      label: '⚔️ Vider tous les Équipements',
+      count: equipment.length,
+      units: equipment.reduce((acc, it) => acc + it.total_quantity, 0),
+      value: equipment.reduce((acc, it) => acc + it.total_value, 0),
+      color: 'blue'
+    },
+    {
+      id: 'runes',
+      label: '🔮 Vider toutes les Runes',
+      count: runes.length,
+      units: runes.reduce((acc, it) => acc + it.total_quantity, 0),
+      value: runes.reduce((acc, it) => acc + it.total_value, 0),
+      color: 'purple'
+    },
+    {
+      id: 'consumables',
+      label: '🧪 Vider tous les Consommables',
+      count: consumables.length,
+      units: consumables.reduce((acc, it) => acc + it.total_quantity, 0),
+      value: consumables.reduce((acc, it) => acc + it.total_value, 0),
+      color: 'amber'
+    }
+  ]
+
+  const handleConfirmPurge = (cat: string) => {
+    if (onClearBatchesByCategory) {
+      onClearBatchesByCategory(cat)
+    }
+    setIsPurgeModalOpen(false)
+    setSelectedPurgeCategory(null)
+  }
 
   const handleSaveRefPrice = (ankamaId: number) => {
     const parsed = parseInt(tempRefPrice) || 0
@@ -98,16 +161,30 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-4 bg-[#0d1117] px-4 py-2 rounded-xl border border-[#30363d]">
-          <div>
-            <span className="text-[10px] uppercase font-bold text-slate-400 block">Total Unités</span>
-            <span className="text-sm font-bold font-mono text-white">{totalUnits.toLocaleString('fr-FR')} u</span>
+        <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap">
+          <div className="flex items-center gap-4 bg-[#0d1117] px-4 py-2 rounded-xl border border-[#30363d]">
+            <div>
+              <span className="text-[10px] uppercase font-bold text-slate-400 block">Total Unités</span>
+              <span className="text-sm font-bold font-mono text-white">{totalUnits.toLocaleString('fr-FR')} u</span>
+            </div>
+            <div className="h-6 w-px bg-[#30363d]" />
+            <div>
+              <span className="text-[10px] uppercase font-bold text-slate-400 block">Valeur Totale</span>
+              <span className="text-sm font-bold font-mono text-yellow-400">{formatKamas(totalStockValue)}</span>
+            </div>
           </div>
-          <div className="h-6 w-px bg-[#30363d]" />
-          <div>
-            <span className="text-[10px] uppercase font-bold text-slate-400 block">Valeur Totale</span>
-            <span className="text-sm font-bold font-mono text-yellow-400">{formatKamas(totalStockValue)}</span>
-          </div>
+
+          {/* Bulk Purge Button */}
+          {stockItems.length > 0 && onClearBatchesByCategory && (
+            <button
+              onClick={() => setIsPurgeModalOpen(true)}
+              className="px-3 py-2 bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-800/80 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shrink-0"
+              title="Vider tout ou par catégorie"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+              <span>Vider le stock...</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -130,7 +207,8 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
             { id: 'all', label: 'Tout' },
             { id: 'resources', label: '🌿 Ressources' },
             { id: 'runes', label: '🔮 Runes' },
-            { id: 'equipment', label: '⚔️ Équipements' }
+            { id: 'equipment', label: '⚔️ Équipements' },
+            { id: 'consumables', label: '🧪 Consommables' }
           ].map((c) => (
             <button
               key={c.id}
@@ -377,6 +455,73 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
               </div>
             )
           })}
+        </div>
+      )}
+
+      {/* Bulk Purge Modal */}
+      {isPurgeModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs animate-in fade-in">
+          <div className="relative w-full max-w-md bg-[#161b22] border border-[#30363d] rounded-2xl shadow-2xl overflow-hidden p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-rose-400">
+                <AlertTriangle className="w-5 h-5" />
+                <h3 className="text-base font-bold text-white">Vider le Stock / Inventaire</h3>
+              </div>
+              <button
+                onClick={() => {
+                  setIsPurgeModalOpen(false)
+                  setSelectedPurgeCategory(null)
+                }}
+                className="text-slate-400 hover:text-white p-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-400">
+              Choisissez ce que vous souhaitez supprimer en un clic de votre inventaire actif :
+            </p>
+
+            {/* Category Purge List */}
+            <div className="space-y-2">
+              {purgeOptions.map((opt) => (
+                <div
+                  key={opt.id}
+                  className="p-3 bg-[#0d1117] border border-[#30363d] hover:border-rose-500/50 rounded-xl flex items-center justify-between gap-3 transition"
+                >
+                  <div>
+                    <span className="text-xs font-bold text-white block">{opt.label}</span>
+                    <span className="text-[11px] text-slate-400">
+                      {opt.count} item(s) • {opt.units} u • <strong className="text-yellow-400 font-mono">{formatKamas(opt.value)}</strong>
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={opt.count === 0}
+                    onClick={() => handleConfirmPurge(opt.id)}
+                    className="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 disabled:opacity-30 text-white font-bold text-xs rounded-lg transition flex items-center gap-1 shadow-sm shrink-0"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Vider</span>
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <div className="pt-2 text-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsPurgeModalOpen(false)
+                  setSelectedPurgeCategory(null)
+                }}
+                className="px-4 py-2 bg-[#21262d] hover:bg-[#30363d] text-slate-300 font-semibold text-xs rounded-xl transition"
+              >
+                Annuler
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

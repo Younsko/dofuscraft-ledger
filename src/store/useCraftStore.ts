@@ -265,6 +265,15 @@ export function useCraftStore() {
     setBatches(prev => prev.filter(b => b.id !== batchId))
   }, [])
 
+  // Clear batches by category (e.g. 'all', 'resources', 'equipment', 'runes', 'consumables')
+  const clearBatchesByCategory = useCallback((category: string = 'all') => {
+    if (category === 'all') {
+      setBatches([])
+    } else {
+      setBatches(prev => prev.filter(b => b.category !== category))
+    }
+  }, [])
+
   // Update reference price
   const updateReferencePrice = useCallback((itemAnkamaId: number, price: number) => {
     setReferencePrices(prev => ({
@@ -593,6 +602,7 @@ export function useCraftStore() {
     addPurchaseBatch,
     addMultipleBatches,
     deleteBatch,
+    clearBatchesByCategory,
     updateReferencePrice,
     executeCraft,
     recordSale,

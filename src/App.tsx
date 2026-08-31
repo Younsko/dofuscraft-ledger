@@ -39,6 +39,7 @@ export const App: React.FC = () => {
     addPurchaseBatch,
     addMultipleBatches,
     deleteBatch,
+    clearBatchesByCategory,
     updateReferencePrice,
     executeCraft,
     recordSale,
@@ -149,6 +150,7 @@ export const App: React.FC = () => {
             onOpenSaleModal={handleOpenSaleModal}
             onOpenCrushModal={handleOpenCrushModal}
             onDeleteBatch={deleteBatch}
+            onClearBatchesByCategory={clearBatchesByCategory}
             onUpdateRefPrice={updateReferencePrice}
             onOpenHDVModal={() => setActiveTab('fast-hdv' as any)}
           />
