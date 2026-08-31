@@ -404,3 +404,136 @@ export function estimateCraftCostFromPastPurchases(
     ingredients
   }
 }
+
+/**
+ * Calculate the theoretical craft cost combining:
+ * 1. Resources already in Bank / Stock (deducted from cash needed)
+ * 2. Missing resources priced at their most recent HDV purchase price
+ * 3. Unknown resources priced as 0 K with a clear indicator
+ */
+export function calculateTheoreticalCraftCost(
+  recipe: DofusRecipeIngredient[] = [],
+  stockMap: Map<number, StockItem>,
+  latestPrices: Record<number, { price: number; date?: string }>,
+  craftMultiplier = 1
+): {
+  totalTheoreticalCost: number
+  cashToSpend: number
+  stockUsedValue: number
+  inStockIngredientsCount: number
+  fullyStockedCount: number
+  knownPricesCount: number
+  unknownPricesCount: number
+  totalIngredientsCount: number
+  isFullyInStock: boolean
+  isFullyPriced: boolean
+  ingredients: Array<{
+    item_ankama_id: number
+    item_name?: string
+    item_icon?: string
+    required_qty: number
+    in_stock_qty: number
+    used_stock_qty: number
+    missing_qty: number
+    is_satisfied: boolean
+    stock_pru: number
+    unit_price: number
+    has_known_price: boolean
+    cost_from_stock: number
+    cost_to_buy: number
+    total_cost: number
+    price_date?: string
+  }>
+} {
+  if (!recipe || recipe.length === 0) {
+    return {
+      totalTheoreticalCost: 0,
+      cashToSpend: 0,
+      stockUsedValue: 0,
+      inStockIngredientsCount: 0,
+      fullyStockedCount: 0,
+      knownPricesCount: 0,
+      unknownPricesCount: 0,
+      totalIngredientsCount: 0,
+      isFullyInStock: false,
+      isFullyPriced: false,
+      ingredients: []
+    }
+  }
+
+  let totalTheoreticalCost = 0
+  let cashToSpend = 0
+  let stockUsedValue = 0
+  let inStockCount = 0
+  let fullyStockedCount = 0
+  let knownPricesCount = 0
+  let unknownPricesCount = 0
+
+  const ingredients = recipe.map(ing => {
+    const required_qty = ing.quantity * craftMultiplier
+    const stockItem = stockMap.get(ing.item_ankama_id)
+    const in_stock_qty = stockItem ? stockItem.total_quantity : 0
+    const stock_pru = stockItem ? stockItem.pru : 0
+
+    const used_stock_qty = Math.min(required_qty, in_stock_qty)
+    const missing_qty = Math.max(0, required_qty - in_stock_qty)
+    const is_satisfied = in_stock_qty >= required_qty
+
+    if (in_stock_qty > 0) inStockCount++
+    if (is_satisfied) fullyStockedCount++
+
+    const latest = latestPrices[ing.item_ankama_id]
+    const has_known_price = !!(latest && latest.price > 0)
+    const unit_price = has_known_price ? latest.price : 0
+
+    if (has_known_price) {
+      knownPricesCount++
+    } else {
+      unknownPricesCount++
+    }
+
+    const cost_from_stock = used_stock_qty * stock_pru
+    const cost_to_buy = missing_qty * unit_price
+    const total_cost = cost_from_stock + cost_to_buy
+
+    stockUsedValue += cost_from_stock
+    cashToSpend += cost_to_buy
+    totalTheoreticalCost += total_cost
+
+    return {
+      item_ankama_id: ing.item_ankama_id,
+      item_name: ing.item_name,
+      item_icon: ing.item_icon,
+      required_qty,
+      in_stock_qty,
+      used_stock_qty,
+      missing_qty,
+      is_satisfied,
+      stock_pru,
+      unit_price,
+      has_known_price,
+      cost_from_stock,
+      cost_to_buy,
+      total_cost,
+      price_date: latest?.date
+    }
+  })
+
+  const totalIngredientsCount = recipe.length
+  const isFullyInStock = fullyStockedCount === totalIngredientsCount && totalIngredientsCount > 0
+  const isFullyPriced = knownPricesCount === totalIngredientsCount && totalIngredientsCount > 0
+
+  return {
+    totalTheoreticalCost,
+    cashToSpend,
+    stockUsedValue,
+    inStockIngredientsCount: inStockCount,
+    fullyStockedCount,
+    knownPricesCount,
+    unknownPricesCount,
+    totalIngredientsCount,
+    isFullyInStock,
+    isFullyPriced,
+    ingredients
+  }
+}

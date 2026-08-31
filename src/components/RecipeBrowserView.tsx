@@ -9,11 +9,15 @@ import {
   Layers,
   Sparkles,
   Info,
-  Zap
+  Zap,
+  CheckCircle2,
+  AlertCircle,
+  HelpCircle,
+  Coins
 } from 'lucide-react'
 import { DofusItem, StockItem, DofusRecipeIngredient } from '../types'
 import { searchDofusItems, fetchItemById, enrichRecipeIngredients } from '../services/dofusApi'
-import { formatKamas, estimateCraftCostFromPastPurchases, formatDate } from '../utils/formatters'
+import { formatKamas, calculateTheoreticalCraftCost, formatDate } from '../utils/formatters'
 
 interface RecipeBrowserViewProps {
   stockItems: StockItem[]
@@ -98,8 +102,8 @@ export const RecipeBrowserView: React.FC<RecipeBrowserViewProps> = ({
     { id: 'consumables', label: '🧪 Consommables' }
   ]
 
-  const detailedEstimation = selectedItemDetail && detailedRecipe.length > 0
-    ? estimateCraftCostFromPastPurchases(detailedRecipe, latestKnownPrices)
+  const theoreticalDetail = selectedItemDetail && detailedRecipe.length > 0
+    ? calculateTheoreticalCraftCost(detailedRecipe, stockMap, latestKnownPrices)
     : null
 
   return (
@@ -159,7 +163,7 @@ export const RecipeBrowserView: React.FC<RecipeBrowserViewProps> = ({
                 className={`px-2 py-1 rounded border transition ${
                   minLevel === p.min && maxLevel === p.max
                     ? 'bg-yellow-400 text-slate-950 font-bold border-yellow-400'
-                    : 'bg-[#0d1117] text-slate-400 border-[#30363d] hover:text-white'
+                    : 'bg-[#0d1117] text-slate-400 hover:text-white border-[#30363d]'
                 }`}
               >
                 {p.label}
@@ -169,14 +173,14 @@ export const RecipeBrowserView: React.FC<RecipeBrowserViewProps> = ({
         </div>
       </div>
 
-      {/* Product Grid Feed (Vinted Style) */}
+      {/* Grid Results Feed */}
       {isLoading ? (
-        <div className="bg-[#161b22] border border-[#30363d] rounded-2xl p-16 text-center text-slate-400 text-xs">
-          <div className="w-6 h-6 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-          <span>Chargement du catalogue Dofus 3...</span>
+        <div className="p-16 text-center text-slate-400 space-y-3">
+          <div className="w-8 h-8 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-xs">Chargement du catalogue Dofus 3...</p>
         </div>
       ) : results.length === 0 ? (
-        <div className="bg-[#161b22] border border-[#30363d] rounded-2xl p-16 text-center text-slate-400 space-y-2">
+        <div className="bg-[#161b22] border border-[#30363d] rounded-2xl p-16 text-center text-slate-400 space-y-3">
           <Layers className="w-10 h-10 text-slate-600 mx-auto" />
           <p className="font-bold text-slate-200 text-sm">Aucun item trouvé.</p>
           <p className="text-xs text-slate-500">Essayez un autre mot-clé ou élargissez la tranche de niveau.</p>
@@ -186,6 +190,9 @@ export const RecipeBrowserView: React.FC<RecipeBrowserViewProps> = ({
           {results.map((item) => {
             const stock = stockMap.get(item.ankama_id)
             const refPrice = referencePrices[item.ankama_id] || (stock ? stock.pru : null)
+            const theoretical = item.recipe && item.recipe.length > 0
+              ? calculateTheoreticalCraftCost(item.recipe, stockMap, latestKnownPrices)
+              : null
 
             return (
               <div
@@ -222,18 +229,45 @@ export const RecipeBrowserView: React.FC<RecipeBrowserViewProps> = ({
                 {/* Product Content */}
                 <div className="p-3 flex-1 flex flex-col justify-between space-y-2">
                   <div>
-                    {/* Price Tag */}
-                    <div className="font-mono font-extrabold text-sm text-yellow-400">
-                      {refPrice ? formatKamas(refPrice) : 'Prix HDV ?'}
-                    </div>
-
                     {/* Item Name */}
-                    <h3 className="font-bold text-slate-100 text-xs line-clamp-1 mt-0.5 group-hover:text-yellow-400 transition">
+                    <h3 className="font-bold text-slate-100 text-xs line-clamp-1 group-hover:text-yellow-400 transition">
                       {item.name}
                     </h3>
                     <p className="text-[11px] text-slate-400 truncate">
                       {item.type?.name || 'Item'}
                     </p>
+
+                    {/* Dynamic Theoretical Craft Price according to user's stock & past prices */}
+                    {theoretical && (theoretical.totalTheoreticalCost > 0 || theoretical.inStockIngredientsCount > 0) ? (
+                      <div className="mt-1.5 space-y-0.5">
+                        {theoretical.isFullyInStock ? (
+                          <div className="text-[11px] font-bold text-emerald-400 flex items-center gap-1 font-mono">
+                            <span>✨ 100% en Banque (0 K)</span>
+                          </div>
+                        ) : theoretical.inStockIngredientsCount > 0 ? (
+                          <>
+                            <div className="font-mono text-xs font-bold text-emerald-400 flex items-center justify-between">
+                              <span className="text-[10px] text-slate-400 font-sans">À payer HDV :</span>
+                              <span>{formatKamas(theoretical.cashToSpend)}</span>
+                            </div>
+                            <div className="text-[9px] text-slate-400 flex items-center justify-between">
+                              <span>Coût Total : {formatKamas(theoretical.totalTheoreticalCost)}</span>
+                              <span className="text-emerald-400 font-bold">({theoretical.inStockIngredientsCount}/{theoretical.totalIngredientsCount} coffre)</span>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="font-mono text-xs font-bold text-yellow-400 flex items-center justify-between">
+                            <span className="text-[10px] text-slate-400 font-sans">Coût Craft :</span>
+                            <span>{formatKamas(theoretical.totalTheoreticalCost)}</span>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      /* Fallback to HDV price if known */
+                      <div className="font-mono font-extrabold text-xs text-yellow-400 mt-1">
+                        {refPrice ? formatKamas(refPrice) : 'Prix HDV ?'}
+                      </div>
+                    )}
                   </div>
 
                   {/* Card Quick Action Bar */}
@@ -305,20 +339,41 @@ export const RecipeBrowserView: React.FC<RecipeBrowserViewProps> = ({
               </p>
             )}
 
-            {/* Estimated Craft Cost Card */}
-            {detailedEstimation && detailedEstimation.totalEstimatedCost > 0 && (
-              <div className="p-3.5 bg-[#0d1117] rounded-xl border border-[#30363d] space-y-1.5">
-                <div className="flex items-center justify-between">
+            {/* Dynamic Theoretical Craft Cost Card according to user bank & prices */}
+            {theoreticalDetail && (
+              <div className="p-3.5 bg-[#0d1117] rounded-xl border border-[#30363d] space-y-2.5">
+                <div className="flex items-center justify-between border-b border-[#21262d] pb-2">
                   <span className="text-xs font-bold text-yellow-400 flex items-center gap-1.5">
                     <Zap className="w-3.5 h-3.5" />
-                    Estimation Coût de Craft (Derniers Achats) :
+                    Coût Théorique selon vos données :
                   </span>
                   <span className="font-mono text-sm font-black text-yellow-400">
-                    {formatKamas(detailedEstimation.totalEstimatedCost)}
+                    {formatKamas(theoreticalDetail.totalTheoreticalCost)}
                   </span>
                 </div>
-                <p className="text-[10px] text-slate-400">
-                  Calculé à partir de vos derniers prix d'achat enregistrés ({detailedEstimation.knownIngredientsCount}/{detailedEstimation.totalIngredientsCount} ingrédients connus).
+
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="p-2 bg-[#161b22] rounded-lg border border-[#30363d]">
+                    <span className="text-[10px] text-slate-400 block font-semibold">🛒 Reste à payer HDV</span>
+                    <span className="text-xs font-bold font-mono text-emerald-400">
+                      {formatKamas(theoreticalDetail.cashToSpend)}
+                    </span>
+                  </div>
+                  <div className="p-2 bg-[#161b22] rounded-lg border border-[#30363d]">
+                    <span className="text-[10px] text-slate-400 block font-semibold">📦 Ressources en banque</span>
+                    <span className="text-xs font-bold text-white font-mono">
+                      {theoreticalDetail.inStockIngredientsCount}/{theoreticalDetail.totalIngredientsCount} ingrédients
+                    </span>
+                  </div>
+                </div>
+
+                <p className="text-[10px] text-slate-500">
+                  Calculé avec vos stocks réels (déduits à 0 K à débourser) et vos derniers prix connus ({theoreticalDetail.knownPricesCount}/{theoreticalDetail.totalIngredientsCount} prix).
+                  {theoreticalDetail.unknownPricesCount > 0 && (
+                    <span className="text-amber-400 ml-1">
+                      • {theoreticalDetail.unknownPricesCount} ressource(s) non indexée(s) comptée(s) à 0 K.
+                    </span>
+                  )}
                 </p>
               </div>
             )}
@@ -327,7 +382,7 @@ export const RecipeBrowserView: React.FC<RecipeBrowserViewProps> = ({
             <div className="space-y-2">
               <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
                 <Layers className="w-3.5 h-3.5 text-yellow-400" />
-                Recette de fabrication ({detailedRecipe.length} ingrédients) :
+                Détail de la Recette ({detailedRecipe.length} ingrédients) :
               </h4>
 
               {isLoadingRecipe ? (
@@ -335,38 +390,56 @@ export const RecipeBrowserView: React.FC<RecipeBrowserViewProps> = ({
               ) : detailedRecipe.length === 0 ? (
                 <p className="text-xs text-slate-500 py-3">Aucune recette pour cet item.</p>
               ) : (
-                <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                  {detailedRecipe.map((ing) => {
-                    const known = latestKnownPrices[ing.item_ankama_id]
-
-                    return (
-                      <div
-                        key={ing.item_ankama_id}
-                        className="p-2 bg-[#0d1117] rounded-xl border border-[#30363d] flex items-center justify-between text-xs"
-                      >
-                        <div className="flex items-center gap-2 min-w-0">
-                          <img
-                            src={ing.item_icon}
-                            alt={ing.item_name}
-                            className="w-6 h-6 object-contain shrink-0"
-                          />
-                          <span className="font-semibold text-slate-200 truncate">
+                <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
+                  {theoreticalDetail?.ingredients.map((ing) => (
+                    <div
+                      key={ing.item_ankama_id}
+                      className="p-2 bg-[#0d1117] rounded-xl border border-[#30363d] flex items-center justify-between text-xs"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <img
+                          src={ing.item_icon}
+                          alt={ing.item_name}
+                          className="w-6 h-6 object-contain shrink-0"
+                        />
+                        <div className="truncate">
+                          <span className="font-semibold text-slate-200 truncate block">
                             {ing.item_name}
                           </span>
-                        </div>
-                        <div className="text-right shrink-0">
-                          <span className="font-mono text-yellow-400 font-bold block">
-                            x{ing.quantity}
+                          <span className="text-[10px] text-slate-400">
+                            {ing.in_stock_qty > 0 ? (
+                              <strong className="text-emerald-400">
+                                📦 {ing.in_stock_qty}/{ing.required_qty} en banque
+                              </strong>
+                            ) : (
+                              <span className="text-slate-500">Pas en banque</span>
+                            )}
                           </span>
-                          {known && known.price > 0 && (
-                            <span className="text-[9px] text-slate-500 font-mono">
-                              Dernier: {formatKamas(known.price)}/u
-                            </span>
-                          )}
                         </div>
                       </div>
-                    )
-                  })}
+
+                      <div className="text-right shrink-0">
+                        <span className="font-mono text-white font-bold block">
+                          x{ing.required_qty}
+                        </span>
+                        {ing.missing_qty > 0 ? (
+                          ing.has_known_price ? (
+                            <span className="text-[9px] text-yellow-400 font-mono">
+                              Manque {ing.missing_qty} • {formatKamas(ing.cost_to_buy)}
+                            </span>
+                          ) : (
+                            <span className="text-[9px] text-slate-500 font-mono">
+                              Prix non indexé (0 K)
+                            </span>
+                          )
+                        ) : (
+                          <span className="text-[9px] text-emerald-400 font-bold">
+                            ✅ 100% en stock
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
