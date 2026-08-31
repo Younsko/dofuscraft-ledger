@@ -130,6 +130,32 @@ export interface SaleRecord {
   server_id?: string
 }
 
+export interface CrushRecord {
+  id: string
+  item_ankama_id: number
+  item_name: string
+  item_icon: string
+  item_level: number
+  quantity_crushed: number
+  item_unit_cost: number
+  total_item_cost: number
+  coefficient_percent?: number
+  focus?: string
+  date: string
+  runes_obtained: Array<{
+    rune_ankama_id: number
+    rune_name: string
+    rune_icon: string
+    quantity: number
+    unit_price: number
+    total_value: number
+  }>
+  total_runes_value: number
+  net_profit: number
+  roi_percent: number
+  server_id?: string
+}
+
 export interface DofusServer {
   id: string
   name: string

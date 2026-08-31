@@ -4,6 +4,7 @@ import {
   StockItem,
   CraftRecord,
   SaleRecord,
+  CrushRecord,
   DofusItem,
   CraftPlanItem,
   AggregatedCraftIngredient
@@ -73,6 +74,17 @@ export function useCraftStore() {
     return []
   })
 
+  // Crushing & Rune Output History for current server
+  const [crushHistory, setCrushHistory] = useState<CrushRecord[]>(() => {
+    try {
+      const saved = localStorage.getItem(`dofuscraft_crushes_${currentServer}_v3`)
+      if (saved) return JSON.parse(saved)
+    } catch (e) {
+      console.error(e)
+    }
+    return []
+  })
+
   // Reference Prices for current server
   const [referencePrices, setReferencePrices] = useState<Record<number, number>>(() => {
     try {
@@ -119,6 +131,9 @@ export function useCraftStore() {
       const sSaved = localStorage.getItem(`dofuscraft_sales_${serverId}_v3`)
       setSalesHistory(sSaved ? JSON.parse(sSaved) : [])
 
+      const crSaved = localStorage.getItem(`dofuscraft_crushes_${serverId}_v3`)
+      setCrushHistory(crSaved ? JSON.parse(crSaved) : [])
+
       const rSaved = localStorage.getItem(`dofuscraft_ref_prices_${serverId}_v3`)
       setReferencePrices(rSaved ? JSON.parse(rSaved) : {})
 
@@ -143,6 +158,10 @@ export function useCraftStore() {
   }, [salesHistory, currentServer])
 
   useEffect(() => {
+    localStorage.setItem(`dofuscraft_crushes_${currentServer}_v3`, JSON.stringify(crushHistory))
+  }, [crushHistory, currentServer])
+
+  useEffect(() => {
     localStorage.setItem(`dofuscraft_ref_prices_${currentServer}_v3`, JSON.stringify(referencePrices))
   }, [referencePrices, currentServer])
 
@@ -160,6 +179,17 @@ export function useCraftStore() {
     return getLatestKnownPrices(batches, referencePrices)
   }, [batches, referencePrices])
 
+  // Latest crushing results indexed by item Ankama ID
+  const latestCrushesByItem = useMemo(() => {
+    const map: Record<number, CrushRecord> = {}
+    for (const c of crushHistory) {
+      if (!map[c.item_ankama_id]) {
+        map[c.item_ankama_id] = c
+      }
+    }
+    return map
+  }, [crushHistory])
+
   // Key Financial KPIs
   const totalStockValue = useMemo(() => {
     return stockItems.reduce((acc, it) => acc + it.total_value, 0)
@@ -172,6 +202,10 @@ export function useCraftStore() {
   const totalNetProfit = useMemo(() => {
     return salesHistory.reduce((acc, s) => acc + s.net_profit, 0)
   }, [salesHistory])
+
+  const totalCrushProfit = useMemo(() => {
+    return crushHistory.reduce((acc, c) => acc + c.net_profit, 0)
+  }, [crushHistory])
 
   const totalCraftCount = useMemo(() => {
     return craftHistory.reduce((acc, c) => acc + c.quantity, 0)
@@ -341,6 +375,108 @@ export function useCraftStore() {
     return saleRecord
   }, [batches, currentServer])
 
+  // Record Brisage / Crushing of Items
+  const recordCrush = useCallback((
+    item: StockItem,
+    quantity: number,
+    runesObtained: Array<{
+      rune: DofusItem
+      quantity: number
+      unitPrice: number
+    }>,
+    coefficientPercent = 100,
+    focus?: string,
+    addRunesToStock = true
+  ) => {
+    let remainingToCrush = quantity
+    let totalCostOfCrushed = 0
+
+    const updatedBatches = batches.map(b => {
+      if (b.item_ankama_id !== item.item_ankama_id || b.remaining_quantity <= 0 || remainingToCrush <= 0) {
+        return b
+      }
+
+      const canTake = Math.min(b.remaining_quantity, remainingToCrush)
+      totalCostOfCrushed += canTake * b.unit_price
+      remainingToCrush -= canTake
+
+      return {
+        ...b,
+        remaining_quantity: b.remaining_quantity - canTake
+      }
+    })
+
+    const actualCrushedQty = quantity - remainingToCrush
+    const unitItemCost = actualCrushedQty > 0 ? totalCostOfCrushed / actualCrushedQty : item.pru
+
+    const detailedRunes = runesObtained
+      .filter(r => r.quantity > 0)
+      .map(r => ({
+        rune_ankama_id: r.rune.ankama_id,
+        rune_name: r.rune.name,
+        rune_icon: r.rune.image_urls?.icon || `https://api.dofusdu.de/dofus3/v1/img/item/${r.rune.ankama_id}-64.png`,
+        quantity: r.quantity,
+        unit_price: r.unitPrice || referencePrices[r.rune.ankama_id] || 100,
+        total_value: r.quantity * (r.unitPrice || referencePrices[r.rune.ankama_id] || 100)
+      }))
+
+    const totalRunesValue = detailedRunes.reduce((acc, r) => acc + r.total_value, 0)
+    const netProfit = totalRunesValue - totalCostOfCrushed
+    const roiPercent = totalCostOfCrushed > 0 ? Math.round(((netProfit / totalCostOfCrushed) * 100) * 10) / 10 : 0
+
+    const crushRecord: CrushRecord = {
+      id: `crush_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      item_ankama_id: item.item_ankama_id,
+      item_name: item.name,
+      item_icon: item.icon,
+      item_level: item.level,
+      quantity_crushed: actualCrushedQty,
+      item_unit_cost: unitItemCost,
+      total_item_cost: totalCostOfCrushed,
+      coefficient_percent: coefficientPercent,
+      focus: focus || undefined,
+      date: new Date().toISOString(),
+      runes_obtained: detailedRunes,
+      total_runes_value: totalRunesValue,
+      net_profit: netProfit,
+      roi_percent: roiPercent,
+      server_id: currentServer
+    }
+
+    const newRuneBatches: PurchaseBatch[] = []
+    if (addRunesToStock && detailedRunes.length > 0) {
+      detailedRunes.forEach(r => {
+        if (r.quantity > 0) {
+          newRuneBatches.push({
+            id: `batch_rune_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            item_ankama_id: r.rune_ankama_id,
+            item_name: r.rune_name,
+            item_type: 'Rune de Forgemagie',
+            item_icon: r.rune_icon,
+            item_level: 1,
+            category: 'runes',
+            quantity: r.quantity,
+            remaining_quantity: r.quantity,
+            total_price: r.total_value,
+            unit_price: r.unit_price,
+            date: new Date().toISOString(),
+            note: `Issu du brisage de ${actualCrushedQty}x ${item.name}`,
+            server_id: currentServer
+          })
+        }
+      })
+    }
+
+    setBatches([...newRuneBatches, ...updatedBatches])
+    setCrushHistory(prev => [crushRecord, ...prev])
+
+    return crushRecord
+  }, [batches, referencePrices, currentServer])
+
+  const deleteCrushRecord = useCallback((crushId: string) => {
+    setCrushHistory(prev => prev.filter(c => c.id !== crushId))
+  }, [])
+
   // Multi-Craft Plan Queue Actions
   const addToCraftPlan = useCallback((item: DofusItem, quantity = 1) => {
     setCraftPlan(prev => {
@@ -383,11 +519,13 @@ export function useCraftStore() {
     setBatches([])
     setCraftHistory([])
     setSalesHistory([])
+    setCrushHistory([])
     setReferencePrices({})
     setCraftPlan([])
     localStorage.removeItem(`dofuscraft_batches_${currentServer}_v3`)
     localStorage.removeItem(`dofuscraft_crafts_${currentServer}_v3`)
     localStorage.removeItem(`dofuscraft_sales_${currentServer}_v3`)
+    localStorage.removeItem(`dofuscraft_crushes_${currentServer}_v3`)
     localStorage.removeItem(`dofuscraft_ref_prices_${currentServer}_v3`)
     localStorage.removeItem(`dofuscraft_craft_plan_${currentServer}_v3`)
   }, [currentServer])
@@ -400,6 +538,7 @@ export function useCraftStore() {
       batches,
       craftHistory,
       salesHistory,
+      crushHistory,
       referencePrices,
       craftPlan
     }
@@ -410,7 +549,7 @@ export function useCraftStore() {
     a.download = `dofuscraft_${currentServer}_backup_${new Date().toISOString().slice(0, 10)}.json`
     a.click()
     URL.revokeObjectURL(url)
-  }, [currentServer, batches, craftHistory, salesHistory, referencePrices, craftPlan])
+  }, [currentServer, batches, craftHistory, salesHistory, crushHistory, referencePrices, craftPlan])
 
   // Import JSON backup
   const importDataJson = useCallback((jsonContent: string) => {
@@ -419,6 +558,7 @@ export function useCraftStore() {
       if (data.batches) setBatches(data.batches)
       if (data.craftHistory) setCraftHistory(data.craftHistory)
       if (data.salesHistory) setSalesHistory(data.salesHistory)
+      if (data.crushHistory) setCrushHistory(data.crushHistory)
       if (data.referencePrices) setReferencePrices(data.referencePrices)
       if (data.craftPlan) setCraftPlan(data.craftPlan)
       return true
@@ -436,14 +576,17 @@ export function useCraftStore() {
     stockItems,
     craftHistory,
     salesHistory,
+    crushHistory,
     referencePrices,
     latestKnownPrices,
+    latestCrushesByItem,
     craftPlan,
     activeTab,
     selectedItemForCraft,
     totalStockValue,
     totalSpentPurchases,
     totalNetProfit,
+    totalCrushProfit,
     totalCraftCount,
     setActiveTab,
     setSelectedItemForCraft,
@@ -453,6 +596,8 @@ export function useCraftStore() {
     updateReferencePrice,
     executeCraft,
     recordSale,
+    recordCrush,
+    deleteCrushRecord,
     addToCraftPlan,
     updateCraftPlanQuantity,
     removeFromCraftPlan,

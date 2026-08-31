@@ -10,6 +10,7 @@ import { RecipeBrowserView } from './components/RecipeBrowserView'
 import { AnalyticsView } from './components/AnalyticsView'
 import { HDVPurchaseModal } from './components/HDVPurchaseModal'
 import { ServerSelectModal } from './components/ServerSelectModal'
+import { CrushItemModal } from './components/CrushItemModal'
 import { useCraftStore } from './store/useCraftStore'
 import { DofusItem, StockItem } from './types'
 
@@ -22,8 +23,10 @@ export const App: React.FC = () => {
     stockItems,
     craftHistory,
     salesHistory,
+    crushHistory,
     referencePrices,
     latestKnownPrices,
+    latestCrushesByItem,
     craftPlan,
     activeTab,
     selectedItemForCraft,
@@ -39,6 +42,7 @@ export const App: React.FC = () => {
     updateReferencePrice,
     executeCraft,
     recordSale,
+    recordCrush,
     addToCraftPlan,
     updateCraftPlanQuantity,
     removeFromCraftPlan,
@@ -53,6 +57,8 @@ export const App: React.FC = () => {
   const [isServerModalOpen, setIsServerModalOpen] = useState(!hasChosenServer)
   const [preselectedHDVItem, setPreselectedHDVItem] = useState<DofusItem | null>(null)
   const [preselectedHDVQty, setPreselectedHDVQty] = useState<number>(100)
+  const [isCrushModalOpen, setIsCrushModalOpen] = useState(false)
+  const [itemToCrush, setItemToCrush] = useState<StockItem | null>(null)
 
   const handleOpenHDVModal = (item?: DofusItem, defaultQty?: number) => {
     if (item) {
@@ -71,6 +77,11 @@ export const App: React.FC = () => {
 
   const handleOpenSaleModal = (_item: StockItem) => {
     setActiveTab('sales')
+  }
+
+  const handleOpenCrushModal = (item: StockItem) => {
+    setItemToCrush(item)
+    setIsCrushModalOpen(true)
   }
 
   return (
@@ -120,6 +131,7 @@ export const App: React.FC = () => {
             stockItems={stockItems}
             referencePrices={referencePrices}
             latestKnownPrices={latestKnownPrices}
+            latestCrushesByItem={latestCrushesByItem}
             onSelectItem={setSelectedItemForCraft}
             onExecuteCraft={executeCraft}
             onOpenHDVWithItem={(item, qty) => handleOpenHDVModal(item, qty)}
@@ -131,9 +143,11 @@ export const App: React.FC = () => {
           <InventoryView
             stockItems={stockItems}
             referencePrices={referencePrices}
+            latestCrushesByItem={latestCrushesByItem}
             onSelectItemForCraft={handleSelectForCraft}
             onOpenHDVWithItem={(item) => handleOpenHDVModal(item)}
             onOpenSaleModal={handleOpenSaleModal}
+            onOpenCrushModal={handleOpenCrushModal}
             onDeleteBatch={deleteBatch}
             onUpdateRefPrice={updateReferencePrice}
             onOpenHDVModal={() => setActiveTab('fast-hdv' as any)}
@@ -208,11 +222,23 @@ export const App: React.FC = () => {
         initialQuantity={preselectedHDVQty}
       />
 
+      {/* Brisage / Crushing Modal */}
+      <CrushItemModal
+        isOpen={isCrushModalOpen}
+        item={itemToCrush}
+        referencePrices={referencePrices}
+        onClose={() => {
+          setIsCrushModalOpen(false)
+          setItemToCrush(null)
+        }}
+        onRecordCrush={recordCrush}
+      />
+
       {/* Footer */}
       <footer className="mt-auto border-t border-[#21262d] bg-[#161b22] py-3.5 text-xs text-slate-500">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
           <p className="font-semibold text-slate-400">
-            DofusCraft Ledger v3 • Indexeur HDV, Multi-Crafts & Stock Dofus 3
+            DofusCraft Ledger v3 • Indexeur HDV, Multi-Crafts, Brisage & Stock Dofus 3
           </p>
           <p className="text-[11px] text-slate-600">
             Serveur actif : <strong className="text-yellow-400 font-bold">{currentServer}</strong> • 100% PWA installable

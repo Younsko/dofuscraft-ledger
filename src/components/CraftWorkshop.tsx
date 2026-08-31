@@ -16,7 +16,7 @@ import {
   TrendingUp
 } from 'lucide-react'
 import confetti from 'canvas-confetti'
-import { DofusItem, StockItem, DofusRecipeIngredient } from '../types'
+import { DofusItem, StockItem, DofusRecipeIngredient, CrushRecord } from '../types'
 import {
   formatKamas,
   formatKamasCompact,
@@ -31,6 +31,7 @@ interface CraftWorkshopProps {
   stockItems: StockItem[]
   referencePrices: Record<number, number>
   latestKnownPrices?: Record<number, { price: number; date?: string }>
+  latestCrushesByItem?: Record<number, CrushRecord>
   onSelectItem: (item: DofusItem) => void
   onExecuteCraft: (item: DofusItem, qty: number, recipe?: any[]) => any
   onOpenHDVWithItem: (item: DofusItem, missingQty?: number) => void
@@ -42,6 +43,7 @@ export const CraftWorkshop: React.FC<CraftWorkshopProps> = ({
   stockItems,
   referencePrices,
   latestKnownPrices = {},
+  latestCrushesByItem = {},
   onSelectItem,
   onExecuteCraft,
   onOpenHDVWithItem,
@@ -208,6 +210,21 @@ export const CraftWorkshop: React.FC<CraftWorkshopProps> = ({
                       ({estimatedCraft.knownIngredientsCount}/{estimatedCraft.totalIngredientsCount} prix)
                     </span>
                   </button>
+                )}
+
+                {/* Last Crush Output Badge */}
+                {activeItem && latestCrushesByItem[activeItem.ankama_id] && (
+                  <div className="px-2.5 py-0.5 bg-purple-950/60 border border-purple-800 rounded-full flex items-center gap-1.5 text-xs text-purple-300">
+                    <Sparkles className="w-3 h-3 text-purple-400" />
+                    <span>Dernier brisage :</span>
+                    <strong className="text-white">
+                      {latestCrushesByItem[activeItem.ankama_id].runes_obtained.map(r => `${r.quantity}x ${r.rune_name}`).join(', ')}
+                    </strong>
+                    <span>({formatKamas(latestCrushesByItem[activeItem.ankama_id].total_runes_value)})</span>
+                    {latestCrushesByItem[activeItem.ankama_id].coefficient_percent && (
+                      <span className="text-yellow-400 font-mono font-bold">• {latestCrushesByItem[activeItem.ankama_id].coefficient_percent}%</span>
+                    )}
+                  </div>
                 )}
               </div>
 
