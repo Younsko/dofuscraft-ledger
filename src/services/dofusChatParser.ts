@@ -1,6 +1,6 @@
 import { createWorker } from 'tesseract.js'
 import { DofusItem } from '../types'
-import { searchDofusItems } from './dofusApi'
+import { searchDofusItems, fetchItemById, getPreloadedCatalog } from './dofusApi'
 import { parseKamaInput } from '../utils/formatters'
 import { DOFUS_RUNES, runeToDofusItem } from '../data/runesData'
 
@@ -15,12 +15,36 @@ export interface ParsedPurchaseLine {
   confidence: number
 }
 
-// Normalized name cleaner
-function cleanName(name: string): string {
-  return name
-    .replace(/[\[\]'"`]/g, '')
-    .trim()
+// Clean string for fuzzy & exact matching
+function normalizeText(str: string): string {
+  return str
+    .replace(/[’‘`´]/g, "'")
+    .replace(/[\u00A0\u202F\u2007]/g, ' ')
+    .replace(/[\[\]\(\)\{\}"']/g, '')
     .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+}
+
+/**
+ * Clean and normalize a single line before regex parsing
+ */
+function cleanRawLine(line: string): string {
+  return line
+    .replace(/[\u00A0\u202F\u2007]/g, ' ')
+    .replace(/[’‘`´]/g, "'")
+    // Remove leading noise or pipe before timestamps
+    .replace(/^[|lI!:\s\-_]+/, '')
+    // Remove timestamps like [12:15], [12:15:30], (12:15)
+    .replace(/^\[?\d{1,2}:\d{2}(?::\d{2})?\]?\s*/, '')
+    // Remove leftover noise after timestamp
+    .replace(/^[|lI!:\s\-_]+/, '')
+    // Fix "1x" -> "1 x"
+    .replace(/^(\d+)x\b/i, '$1 x')
+    // Fix common OCR mistakes for "1 x" (e.g. "| x", "l x", "I x", "! x")
+    .replace(/^[|lI!]\s*x\s+/i, '1 x ')
+    .trim()
 }
 
 /**
@@ -30,91 +54,118 @@ export async function parseDofusChatText(text: string): Promise<ParsedPurchaseLi
   const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean)
   const results: ParsedPurchaseLine[] = []
 
-  // Known patterns in Dofus chat
-  // Pattern 1: [hh:mm] Vous avez acheté 100 '[Gelée Bleuet]' pour 120 000 kamas.
-  // Pattern 2: Vous avez acheté 10 'Rune Trans Do So' pour 1 500 000 Kamas.
-  // Pattern 3: Achat : 100x Gelée pour 1m
-  // Pattern 4: 100 Gelée Bleuet 120k
-  const patterns = [
-    // Standard Dofus purchase chat
-    /(?:\[\d{2}:\d{2}(?::\d{2})?\]\s*)?Vous avez achet[ée]\s+(\d+)\s+['"\[]?([^'\"\]]+)['"\]]?\s+pour\s+([\d\s\.,]+)\s*kamas?/i,
-    // Short format: 100x Gelée pour 120 000 k
-    /(\d+)\s*(?:x|\*)\s*['"\[]?([^'\"\]]+)['"\]]?\s*(?:pour|à|=)\s*([\d\s\.,kKmM]+)/i,
-    // Compact line: 100 [Laine de Bouftou] 45000
-    /(\d+)\s+['"\[]?([^'\"\]]+)['"\]]?\s+([\d\s\.,kKmM]+)\s*(?:k|kamas)?$/i
-  ]
+  // Ensure preloaded catalog is ready for fast item lookup
+  const preloadedItems = await getPreloadedCatalog('all')
 
-  for (const line of lines) {
-    let matched = false
+  for (const rawLine of lines) {
+    const cleaned = cleanRawLine(rawLine)
+    if (!cleaned) continue
 
-    for (const pattern of patterns) {
-      const match = line.match(pattern)
-      if (match) {
-        const qty = parseInt(match[1].replace(/\s/g, ''), 10) || 1
-        const rawName = match[2].trim()
-        const priceStr = match[3].trim()
-        const totalPrice = parseKamaInput(priceStr)
+    let parsedQty: number | null = null
+    let parsedName: string | null = null
+    let parsedPrice: number | null = null
 
-        if (rawName && qty > 0 && totalPrice > 0) {
-          matched = true
+    // ==========================================
+    // PATTERN 1: [12:15] 1 x [Tourmaline] (69 185 kamas)
+    // or 10 x [Porte-bonheur de Malalfa] (1 974 kamas)
+    // ==========================================
+    const p1 = cleaned.match(/^(\d+)\s*x\s*\[([^\]]+)\]\s*\(([\d\s\.,kKmM]+)\s*kamas?\)/i)
+    if (p1 && p1[1] && p1[2] && p1[3]) {
+      parsedQty = parseInt(p1[1].replace(/\s/g, ''), 10) || 1
+      parsedName = p1[2].trim()
+      parsedPrice = parseKamaInput(p1[3])
+    }
 
-          // Try to match item in DB
-          const candidateItems = await searchDofusItems(rawName)
-          let matchedItem: DofusItem | null = null
-
-          const targetClean = cleanName(rawName)
-          // Exact match priority
-          matchedItem = candidateItems.find(it => cleanName(it.name) === targetClean) ||
-                        candidateItems.find(it => cleanName(it.name).includes(targetClean)) ||
-                        candidateItems[0] || null
-
-          results.push({
-            id: `parse_${Date.now()}_${Math.random().toString(36).substr(2, 7)}`,
-            rawText: line,
-            itemName: matchedItem ? matchedItem.name : rawName,
-            matchedItem,
-            quantity: qty,
-            totalPrice,
-            unitPrice: Math.round(totalPrice / qty),
-            confidence: matchedItem ? 0.95 : 0.7
-          })
-          break
-        }
+    // ==========================================
+    // PATTERN 2: 1 x [Tourmaline] (69 185) or without "kamas" inside parens
+    // ==========================================
+    if (!parsedName) {
+      const p2 = cleaned.match(/^(\d+)\s*x\s*\[([^\]]+)\]\s*\(([\d\s\.,kKmM]+)\)/i)
+      if (p2 && p2[1] && p2[2] && p2[3]) {
+        parsedQty = parseInt(p2[1].replace(/\s/g, ''), 10) || 1
+        parsedName = p2[2].trim()
+        parsedPrice = parseKamaInput(p2[3])
       }
     }
 
-    // Fallback simple scanner if no regex matched directly
-    if (!matched && (line.toLowerCase().includes('acheté') || line.toLowerCase().includes('kamas'))) {
-      const numbers = line.match(/\d[\d\s\.,]*/g)
-      if (numbers && numbers.length >= 2 && numbers[0] && numbers[numbers.length - 1]) {
-        const firstNum = numbers[0]
-        const lastNum = numbers[numbers.length - 1]
-        const qty = parseInt(firstNum.replace(/\s/g, ''), 10) || 1
-        const price = parseKamaInput(lastNum)
-        const rawName = line
-          .replace(/\[\d{2}:\d{2}\]/g, '')
-          .replace(/Vous avez acheté/gi, '')
-          .replace(/pour/gi, '')
-          .replace(/kamas/gi, '')
-          .replace(/\d[\d\s\.,]*/g, '')
-          .replace(/[\[\]'"`]/g, '')
-          .trim()
-
-        if (rawName && price > 0) {
-          const candidateItems = await searchDofusItems(rawName)
-          const matchedItem = candidateItems[0] || null
-          results.push({
-            id: `parse_${Date.now()}_${Math.random().toString(36).substr(2, 7)}`,
-            rawText: line,
-            itemName: matchedItem ? matchedItem.name : rawName,
-            matchedItem,
-            quantity: qty,
-            totalPrice: price,
-            unitPrice: Math.round(price / qty),
-            confidence: 0.6
-          })
-        }
+    // ==========================================
+    // PATTERN 3: 1 x Tourmaline (69 185 kamas) - without brackets
+    // ==========================================
+    if (!parsedName) {
+      const p3 = cleaned.match(/^(\d+)\s*x\s*(.+?)\s*\(([\d\s\.,kKmM]+)\s*kamas?\)/i)
+      if (p3 && p3[1] && p3[2] && p3[3]) {
+        parsedQty = parseInt(p3[1].replace(/\s/g, ''), 10) || 1
+        parsedName = p3[2].trim()
+        parsedPrice = parseKamaInput(p3[3])
       }
+    }
+
+    // ==========================================
+    // PATTERN 4: Standard "Vous avez acheté 100 [Gelée] pour 120 000 kamas"
+    // ==========================================
+    if (!parsedName) {
+      const p4 = cleaned.match(/^Vous avez achet[ée]\s+(\d+)\s*['"\[]?([^'\"\]]+)['"\]]?\s*pour\s*([\d\s\.,kKmM]+)\s*kamas?/i)
+      if (p4 && p4[1] && p4[2] && p4[3]) {
+        parsedQty = parseInt(p4[1].replace(/\s/g, ''), 10) || 1
+        parsedName = p4[2].trim()
+        parsedPrice = parseKamaInput(p4[3])
+      }
+    }
+
+    // ==========================================
+    // PATTERN 5: 10 x [Item] pour 120k / 10x [Item] = 120k / 10 [Item] 120000
+    // ==========================================
+    if (!parsedName) {
+      const p5 = cleaned.match(/^(\d+)\s*(?:x|\*|\s)\s*\[([^\]]+)\]\s*(?:pour|à|=|\:)?\s*([\d\s\.,kKmM]+)\s*(?:k|kamas)?$/i)
+      if (p5 && p5[1] && p5[2] && p5[3]) {
+        parsedQty = parseInt(p5[1].replace(/\s/g, ''), 10) || 1
+        parsedName = p5[2].trim()
+        parsedPrice = parseKamaInput(p5[3])
+      }
+    }
+
+    // If parsed successfully
+    if (parsedName && parsedQty && parsedQty > 0 && parsedPrice && parsedPrice > 0) {
+      const cleanTarget = normalizeText(parsedName)
+
+      // 1. Try exact match in preloaded catalog & runes
+      let matchedItem = preloadedItems.find(it => normalizeText(it.name) === cleanTarget) || null
+
+      // 2. Try runes dataset exact/partial match
+      if (!matchedItem) {
+        const rune = DOFUS_RUNES.find(r => normalizeText(r.name) === cleanTarget)
+        if (rune) matchedItem = runeToDofusItem(rune)
+      }
+
+      // 3. Try live search API if not found
+      if (!matchedItem) {
+        const apiCandidates = await searchDofusItems(parsedName)
+        matchedItem = apiCandidates.find(it => normalizeText(it.name) === cleanTarget) ||
+                      apiCandidates.find(it => normalizeText(it.name).includes(cleanTarget)) ||
+                      apiCandidates.find(it => cleanTarget.includes(normalizeText(it.name))) ||
+                      null
+      }
+
+      const finalName = matchedItem ? matchedItem.name : parsedName
+      const finalIcon = matchedItem?.image_urls?.icon || `https://api.dofusdu.de/dofus3/v1/img/item/0-64.png`
+
+      results.push({
+        id: `parse_${Date.now()}_${Math.random().toString(36).substr(2, 7)}`,
+        rawText: rawLine,
+        itemName: finalName,
+        matchedItem: matchedItem || {
+          ankama_id: 0,
+          name: finalName,
+          type: { id: 0, name: 'Ressource' },
+          level: 1,
+          image_urls: { icon: finalIcon },
+          category: 'resources'
+        },
+        quantity: parsedQty,
+        totalPrice: parsedPrice,
+        unitPrice: Math.round(parsedPrice / parsedQty),
+        confidence: matchedItem ? 1.0 : 0.85
+      })
     }
   }
 
