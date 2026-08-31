@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import {
   Hammer,
-  Sparkles,
   AlertTriangle,
   CheckCircle2,
   ShoppingCart,
@@ -13,7 +12,8 @@ import {
   ArrowRight,
   Zap,
   Info,
-  TrendingUp
+  TrendingUp,
+  Check
 } from 'lucide-react'
 import confetti from 'canvas-confetti'
 import { DofusItem, StockItem, DofusRecipeIngredient, CrushRecord } from '../types'
@@ -215,7 +215,7 @@ export const CraftWorkshop: React.FC<CraftWorkshopProps> = ({
                 {/* Last Crush Output Badge */}
                 {activeItem && latestCrushesByItem[activeItem.ankama_id] && (
                   <div className="px-2.5 py-0.5 bg-purple-950/60 border border-purple-800 rounded-full flex items-center gap-1.5 text-xs text-purple-300">
-                    <Sparkles className="w-3 h-3 text-purple-400" />
+                    <Hammer className="w-3 h-3 text-purple-400" />
                     <span>Dernier brisage :</span>
                     <strong className="text-white">
                       {latestCrushesByItem[activeItem.ankama_id].runes_obtained.map(r => `${r.quantity}x ${r.rune_name}`).join(', ')}
@@ -565,7 +565,7 @@ export const CraftWorkshop: React.FC<CraftWorkshopProps> = ({
           {craftReceipt && (
             <div className="p-4 bg-emerald-950/60 border border-emerald-500 text-emerald-200 rounded-2xl space-y-2 animate-in fade-in">
               <div className="flex items-center gap-2 font-bold text-xs">
-                <Sparkles className="w-4 h-4 text-emerald-400" />
+                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                 <span>Craft réussi ! {craftQty}x {activeItem?.name} ajoutés à l'inventaire</span>
               </div>
               <p className="text-[11px] text-emerald-300/80">

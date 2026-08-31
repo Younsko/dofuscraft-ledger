@@ -1,5 +1,5 @@
 import React from 'react'
-import { Server, Check, X, Shield, Sparkles, Globe } from 'lucide-react'
+import { Server, Check, X, Shield, Globe } from 'lucide-react'
 import { DOFUS_SERVERS } from '../data/serversData'
 import { DofusServer } from '../types'
 

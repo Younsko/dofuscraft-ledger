@@ -7,8 +7,7 @@ import {
   Percent,
   Calendar,
   Check,
-  X,
-  Sparkles
+  X
 } from 'lucide-react'
 import { SaleRecord, StockItem } from '../types'
 import { formatKamas, formatKamasCompact, formatDate } from '../utils/formatters'

@@ -8,7 +8,6 @@ import {
   Hammer,
   Plus,
   Minus,
-  Sparkles,
   AlertCircle,
   Package,
   Layers,
@@ -533,7 +532,7 @@ export const MultiCraftPlannerView: React.FC<MultiCraftPlannerViewProps> = ({
                   onClick={handleExecuteAll}
                   className="px-5 py-2.5 bg-yellow-500 hover:bg-yellow-400 text-slate-950 font-black rounded-xl text-xs flex items-center gap-2 transition shadow-md"
                 >
-                  <Sparkles className="w-4 h-4" />
+                  <Hammer className="w-4 h-4" />
                   <span>Exécuter tous les Crafts en 1 Clic</span>
                 </button>
               </div>

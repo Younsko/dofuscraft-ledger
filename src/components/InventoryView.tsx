@@ -13,7 +13,6 @@ import {
   Edit2,
   Check,
   PackageOpen,
-  Sparkles,
   Percent,
   AlertTriangle,
   X
@@ -313,7 +312,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                       {lastCrush && (
                         <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
                           <span className="px-2 py-0.5 bg-purple-950/70 border border-purple-800 text-purple-300 rounded-full text-[10px] font-medium flex items-center gap-1">
-                            <Sparkles className="w-2.5 h-2.5 text-purple-400" />
+                            <Hammer className="w-2.5 h-2.5 text-purple-400" />
                             <span>Dernier brisage :</span>
                             <strong className="text-white">
                               {lastCrush.runes_obtained.map(r => `${r.quantity}x ${r.rune_name}`).join(', ')}
@@ -370,14 +369,14 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                         <span>Vendre</span>
                       </button>
 
-                      {/* Brisage Button */}
-                      {onOpenCrushModal && (
+                      {/* Brisage Button - Strictly for Equipment only */}
+                      {onOpenCrushModal && item.category === 'equipment' && (
                         <button
                           onClick={() => onOpenCrushModal(item)}
                           className="px-2.5 py-1.5 bg-purple-950/60 hover:bg-purple-900/60 text-purple-300 border border-purple-800 rounded-lg text-xs font-bold transition flex items-center gap-1"
-                          title="Briser cet item et noter les runes obtenues"
+                          title="Briser cet équipement et noter les runes obtenues"
                         >
-                          <Sparkles className="w-3 h-3 text-purple-400" />
+                          <Hammer className="w-3 h-3 text-purple-400" />
                           <span>Briser</span>
                         </button>
                       )}

@@ -9,7 +9,6 @@ import {
   Check,
   Upload,
   Coins,
-  Sparkles,
   Layers,
   Loader2,
   AlertCircle,

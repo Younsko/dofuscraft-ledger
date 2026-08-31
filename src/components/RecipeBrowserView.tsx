@@ -7,7 +7,6 @@ import {
   PackageCheck,
   PackageX,
   Layers,
-  Sparkles,
   Info,
   Zap,
   CheckCircle2,

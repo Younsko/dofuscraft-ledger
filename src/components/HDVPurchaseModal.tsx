@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { X, Search, Plus, Sparkles, Check, PackagePlus, ArrowRight } from 'lucide-react'
+import { X, Search, Plus, Check, PackagePlus, ArrowRight } from 'lucide-react'
 import { DofusItem, PurchaseBatch } from '../types'
 import { searchDofusItems } from '../services/dofusApi'
 import { KamaInput } from './KamaInput'

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { X, Sparkles, Plus, Trash2, Check, Search, TrendingUp, TrendingDown, Percent, Hammer } from 'lucide-react'
+import { X, Plus, Trash2, Check, Search, TrendingUp, TrendingDown, Percent, Hammer, Flame, Layers } from 'lucide-react'
 import confetti from 'canvas-confetti'
 import { StockItem, DofusItem } from '../types'
 import { DOFUS_RUNES, runeToDofusItem } from '../data/runesData'
@@ -147,15 +147,15 @@ export const CrushItemModal: React.FC<CrushItemModalProps> = ({
         <div className="flex items-center justify-between px-6 py-4 bg-[#0d1117] border-b border-[#30363d]">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-purple-500/15 border border-purple-500/40 rounded-xl text-purple-400">
-              <Sparkles className="w-5 h-5" />
+              <Hammer className="w-5 h-5" />
             </div>
             <div>
               <h2 className="text-base font-bold text-white flex items-center gap-2">
-                <span>Enregistrer un Brisage d'Item</span>
+                <span>Briser un Équipement</span>
                 <span className="text-xs font-normal text-slate-400">• Forgemagie</span>
               </h2>
               <p className="text-xs text-slate-400">
-                Notez les runes obtenues pour historiser vos brisages et leur rentabilité
+                Enregistrez les runes générées pour historiser le taux et la rentabilité du brisage
               </p>
             </div>
           </div>
@@ -253,7 +253,7 @@ export const CrushItemModal: React.FC<CrushItemModalProps> = ({
           <div className="space-y-3 pt-2 border-t border-[#30363d]">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                <Hammer className="w-3.5 h-3.5 text-purple-400" />
                 <span>Runes obtenues après brisage ({runeRows.length})</span>
               </label>
               <span className="text-[10px] text-slate-500">Sélectionnez les runes générées</span>
