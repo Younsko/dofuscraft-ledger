@@ -41,6 +41,7 @@ export const App: React.FC = () => {
     deleteBatch,
     clearBatchesByCategory,
     updateReferencePrice,
+    updateMultipleRefPrices,
     executeCraft,
     recordSale,
     recordCrush,
@@ -109,6 +110,7 @@ export const App: React.FC = () => {
           <FastHDVIndexer
             onAddMultipleBatches={addMultipleBatches}
             onAddSingleBatch={addPurchaseBatch}
+            onUpdateMultipleRefPrices={updateMultipleRefPrices}
           />
         )}
 
@@ -136,7 +138,10 @@ export const App: React.FC = () => {
             onSelectItem={setSelectedItemForCraft}
             onExecuteCraft={executeCraft}
             onOpenHDVWithItem={(item, qty) => handleOpenHDVModal(item, qty)}
+            onAddSingleBatch={addPurchaseBatch}
+            onAddMultipleBatches={addMultipleBatches}
             onUpdateRefPrice={updateReferencePrice}
+            onUpdateMultipleRefPrices={updateMultipleRefPrices}
           />
         )}
 

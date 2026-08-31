@@ -27,6 +27,7 @@ import { formatKamas, parseKamaInput } from '../utils/formatters'
 interface FastHDVIndexerProps {
   onAddMultipleBatches: (batches: Array<Omit<PurchaseBatch, 'id' | 'remaining_quantity'>>) => void
   onAddSingleBatch: (batch: Omit<PurchaseBatch, 'id' | 'remaining_quantity'>) => void
+  onUpdateMultipleRefPrices?: (prices: Array<{ itemAnkamaId: number; price: number }>) => void
 }
 
 interface IndexerRow {
@@ -42,7 +43,8 @@ interface IndexerRow {
 
 export const FastHDVIndexer: React.FC<FastHDVIndexerProps> = ({
   onAddMultipleBatches,
-  onAddSingleBatch
+  onAddSingleBatch,
+  onUpdateMultipleRefPrices
 }) => {
   // Preloaded left catalog & filters
   const [catalogItems, setCatalogItems] = useState<DofusItem[]>([])
@@ -53,8 +55,9 @@ export const FastHDVIndexer: React.FC<FastHDVIndexerProps> = ({
   const [gridSize, setGridSize] = useState<'compact' | 'medium' | 'large'>('compact')
   const [isLoadingCatalog, setIsLoadingCatalog] = useState(false)
 
-  // Active Multi-row Table
+  // Active Multi-row Table & Target Mode
   const [rows, setRows] = useState<IndexerRow[]>([])
+  const [indexationTarget, setIndexationTarget] = useState<'stock' | 'prices_only'>('stock')
 
   // OCR & Text Mode
   const [inputMode, setInputMode] = useState<'grid' | 'ocr' | 'chat'>('grid')
@@ -254,6 +257,20 @@ export const FastHDVIndexer: React.FC<FastHDVIndexerProps> = ({
   const handleCommitAll = () => {
     const validRows = rows.filter(r => r.totalPrice > 0 && r.quantity > 0)
     if (validRows.length === 0) return
+
+    if (indexationTarget === 'prices_only') {
+      const pricesToUpdate = validRows.map(r => ({
+        itemAnkamaId: r.item.ankama_id,
+        price: r.unitPrice
+      }))
+      if (onUpdateMultipleRefPrices) {
+        onUpdateMultipleRefPrices(pricesToUpdate)
+      }
+      setRows([])
+      setSuccessToast(`🎉 ${pricesToUpdate.length} prix de référence enregistrés sans ajouter au stock !`)
+      setTimeout(() => setSuccessToast(null), 3000)
+      return
+    }
 
     const batchesToAdd = validRows.map(r => ({
       item_ankama_id: r.item.ankama_id,
@@ -789,24 +806,56 @@ export const FastHDVIndexer: React.FC<FastHDVIndexerProps> = ({
 
             {/* Bottom Actions */}
             {rows.length > 0 && (
-              <div className="p-3 bg-[#0d1117] border-t border-[#30363d] flex items-center justify-between">
-                <button
-                  type="button"
-                  onClick={() => setRows([])}
-                  className="text-xs text-rose-400 hover:underline flex items-center gap-1"
-                >
-                  <Trash2 className="w-3 h-3" />
-                  <span>Vider tout le panier</span>
-                </button>
+              <div className="p-3 bg-[#0d1117] border-t border-[#30363d] flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setRows([])}
+                    className="text-xs text-rose-400 hover:underline flex items-center gap-1"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    <span>Vider tout</span>
+                  </button>
+
+                  {/* Target Mode Toggle */}
+                  <div className="flex items-center bg-[#161b22] p-0.5 rounded-lg border border-[#30363d] text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => setIndexationTarget('stock')}
+                      className={`px-2.5 py-1 rounded-md font-bold transition ${
+                        indexationTarget === 'stock'
+                          ? 'bg-yellow-400 text-slate-950 shadow-xs'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      📦 Ajouter au Stock
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIndexationTarget('prices_only')}
+                      className={`px-2.5 py-1 rounded-md font-bold transition ${
+                        indexationTarget === 'prices_only'
+                          ? 'bg-yellow-400 text-slate-950 shadow-xs'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      🏷️ Prix Seul (Sans Stock)
+                    </button>
+                  </div>
+                </div>
 
                 <button
                   type="button"
                   onClick={handleCommitAll}
                   disabled={totalBatchKamas <= 0}
-                  className="px-5 py-2.5 bg-yellow-500 hover:bg-yellow-400 disabled:opacity-50 text-slate-950 font-black rounded-xl text-xs flex items-center gap-2 transition shadow-md"
+                  className="px-5 py-2.5 bg-yellow-500 hover:bg-yellow-400 disabled:opacity-50 text-slate-950 font-black rounded-xl text-xs flex items-center justify-center gap-2 transition shadow-md"
                 >
                   <Check className="w-4 h-4" />
-                  <span>Valider et Ajouter {rows.length} lots ({formatKamas(totalBatchKamas)})</span>
+                  <span>
+                    {indexationTarget === 'stock'
+                      ? `Valider et Ajouter ${rows.length} lots (${formatKamas(totalBatchKamas)})`
+                      : `Enregistrer ${rows.length} prix de référence`}
+                  </span>
                 </button>
               </div>
             )}

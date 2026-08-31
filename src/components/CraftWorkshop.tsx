@@ -13,10 +13,13 @@ import {
   Zap,
   Info,
   TrendingUp,
-  Check
+  Check,
+  Plus,
+  Tag,
+  PackagePlus
 } from 'lucide-react'
 import confetti from 'canvas-confetti'
-import { DofusItem, StockItem, DofusRecipeIngredient, CrushRecord } from '../types'
+import { DofusItem, StockItem, DofusRecipeIngredient, CrushRecord, PurchaseBatch } from '../types'
 import {
   formatKamas,
   formatKamasCompact,
@@ -35,7 +38,10 @@ interface CraftWorkshopProps {
   onSelectItem: (item: DofusItem) => void
   onExecuteCraft: (item: DofusItem, qty: number, recipe?: any[]) => any
   onOpenHDVWithItem: (item: DofusItem, missingQty?: number) => void
+  onAddSingleBatch?: (batch: Omit<PurchaseBatch, 'id' | 'remaining_quantity'>) => void
+  onAddMultipleBatches?: (batches: Array<Omit<PurchaseBatch, 'id' | 'remaining_quantity'>>) => void
   onUpdateRefPrice: (ankama_id: number, price: number) => void
+  onUpdateMultipleRefPrices?: (prices: Array<{ itemAnkamaId: number; price: number }>) => void
 }
 
 export const CraftWorkshop: React.FC<CraftWorkshopProps> = ({
@@ -47,7 +53,10 @@ export const CraftWorkshop: React.FC<CraftWorkshopProps> = ({
   onSelectItem,
   onExecuteCraft,
   onOpenHDVWithItem,
-  onUpdateRefPrice
+  onAddSingleBatch,
+  onAddMultipleBatches,
+  onUpdateRefPrice,
+  onUpdateMultipleRefPrices
 }) => {
   const [craftQty, setCraftQty] = useState<number>(1)
   const [activeItem, setActiveItem] = useState<DofusItem | null>(selectedItem)
@@ -60,6 +69,10 @@ export const CraftWorkshop: React.FC<CraftWorkshopProps> = ({
   const [isCrafting, setIsCrafting] = useState(false)
   const [craftReceipt, setCraftReceipt] = useState<any | null>(null)
   const [showEstimationDetails, setShowEstimationDetails] = useState(false)
+
+  // Inline Quick Input State per ingredient: { price: string, qty: string }
+  const [inlineInputs, setInlineInputs] = useState<Record<number, { price: string; qty: string }>>({})
+  const [quickToast, setQuickToast] = useState<string | null>(null)
 
   // Initialize with selectedItem or fetch first craftable item from real catalog
   useEffect(() => {
@@ -123,16 +136,178 @@ export const CraftWorkshop: React.FC<CraftWorkshopProps> = ({
     return () => clearTimeout(timer)
   }, [pickerSearch])
 
-  // Real-time craft calculation
+  // Recipe Requirements & Stock Deductions
   const {
     requirements,
     isFullySatisfied,
-    totalProjectedCost,
     totalStockCost,
-    totalMissingCost
-  } = calculateCraftRequirements(enrichedRecipe, craftQty, stockItems, referencePrices)
+    totalMissingCost,
+    totalProjectedCost
+  } = calculateCraftRequirements(
+    enrichedRecipe,
+    craftQty,
+    stockItems,
+    referencePrices
+  )
 
-  // Estimated craft cost based on latest known purchase prices
+  // Sync / Initialize inline inputs when requirements or craftQty changes
+  useEffect(() => {
+    setInlineInputs(prev => {
+      const updated = { ...prev }
+      requirements.forEach(req => {
+        const defaultQty = req.missing_qty > 0 ? req.missing_qty.toString() : req.required_qty.toString()
+        const defaultPrice = latestKnownPrices[req.item_ankama_id]?.price?.toString() ||
+                             referencePrices[req.item_ankama_id]?.toString() ||
+                             ''
+
+        if (!updated[req.item_ankama_id]) {
+          updated[req.item_ankama_id] = { qty: defaultQty, price: defaultPrice }
+        } else {
+          // If user hasn't explicitly typed, keep updated missing qty
+          if (!updated[req.item_ankama_id].qty || parseInt(updated[req.item_ankama_id].qty) <= 0) {
+            updated[req.item_ankama_id].qty = defaultQty
+          }
+          if (!updated[req.item_ankama_id].price && defaultPrice) {
+            updated[req.item_ankama_id].price = defaultPrice
+          }
+        }
+      })
+      return updated
+    })
+  }, [enrichedRecipe, craftQty, latestKnownPrices, referencePrices])
+
+  const handleUpdateInlineRow = (ankamaId: number, field: 'price' | 'qty', value: string) => {
+    setInlineInputs(prev => ({
+      ...prev,
+      [ankamaId]: {
+        ...prev[ankamaId],
+        [field]: value
+      }
+    }))
+  }
+
+  // 1-Click Inline Buy / Add to stock for a single ingredient
+  const handleInlineBuyBatch = (req: any) => {
+    const row = inlineInputs[req.item_ankama_id] || { price: '0', qty: req.missing_qty.toString() }
+    const qty = parseInt(row.qty) || req.missing_qty || req.required_qty || 1
+    const price = parseInt(row.price) || latestKnownPrices[req.item_ankama_id]?.price || referencePrices[req.item_ankama_id] || 0
+
+    if (qty <= 0 || price <= 0) {
+      if (price <= 0) {
+        onOpenHDVWithItem(
+          {
+            ankama_id: req.item_ankama_id,
+            name: req.name,
+            type: { id: 0, name: req.type },
+            level: 1,
+            image_urls: { icon: req.icon },
+            category: 'resources'
+          },
+          qty
+        )
+      }
+      return
+    }
+
+    if (onAddSingleBatch) {
+      onAddSingleBatch({
+        item_ankama_id: req.item_ankama_id,
+        item_name: req.name,
+        item_type: req.type || 'Ressource',
+        item_icon: req.icon,
+        item_level: 1,
+        category: 'resources',
+        quantity: qty,
+        unit_price: price,
+        total_price: qty * price,
+        date: new Date().toISOString(),
+        note: `Achat rapide pour ${activeItem?.name || 'Craft'}`
+      })
+
+      setQuickToast(`+${qty}x ${req.name} ajoutés au stock !`)
+      setTimeout(() => setQuickToast(null), 2500)
+    }
+  }
+
+  // 1-Click Inline Index Price Only (without stock)
+  const handleInlineIndexPrice = (req: any) => {
+    const row = inlineInputs[req.item_ankama_id] || { price: '0', qty: '1' }
+    const price = parseInt(row.price) || 0
+
+    if (price > 0) {
+      onUpdateRefPrice(req.item_ankama_id, price)
+      setQuickToast(`🏷️ Prix de ${req.name} indexé (${formatKamas(price)}) !`)
+      setTimeout(() => setQuickToast(null), 2500)
+    }
+  }
+
+  // Master 1-Click: Buy / Add all missing ingredients to stock simultaneously
+  const handleBuyAllMissingInline = () => {
+    const missingReqs = requirements.filter(r => !r.is_satisfied && r.missing_qty > 0)
+    if (missingReqs.length === 0) return
+
+    const batchesToAdd: Array<Omit<PurchaseBatch, 'id' | 'remaining_quantity'>> = []
+
+    missingReqs.forEach(req => {
+      const row = inlineInputs[req.item_ankama_id]
+      const qty = parseInt(row?.qty || '') || req.missing_qty
+      const price = parseInt(row?.price || '') || latestKnownPrices[req.item_ankama_id]?.price || referencePrices[req.item_ankama_id] || 0
+
+      if (qty > 0 && price > 0) {
+        batchesToAdd.push({
+          item_ankama_id: req.item_ankama_id,
+          item_name: req.name,
+          item_type: req.type || 'Ressource',
+          item_icon: req.icon,
+          item_level: 1,
+          category: 'resources',
+          quantity: qty,
+          unit_price: price,
+          total_price: qty * price,
+          date: new Date().toISOString(),
+          note: `Achat global pour ${activeItem?.name || 'Craft'}`
+        })
+      }
+    })
+
+    if (batchesToAdd.length > 0) {
+      if (onAddMultipleBatches) {
+        onAddMultipleBatches(batchesToAdd)
+      } else if (onAddSingleBatch) {
+        batchesToAdd.forEach(b => onAddSingleBatch(b))
+      }
+
+      setQuickToast(`🎉 ${batchesToAdd.length} ressources achetées et ajoutées au stock !`)
+      setTimeout(() => setQuickToast(null), 3000)
+    } else {
+      setQuickToast(`⚠️ Veuillez renseigner le prix des ressources ci-dessous.`)
+      setTimeout(() => setQuickToast(null), 3000)
+    }
+  }
+
+  // Master 1-Click: Index all prices only without adding stock
+  const handleIndexAllPricesOnly = () => {
+    const pricesToUpdate: Array<{ itemAnkamaId: number; price: number }> = []
+
+    requirements.forEach(req => {
+      const row = inlineInputs[req.item_ankama_id]
+      const price = parseInt(row?.price || '') || 0
+      if (price > 0) {
+        pricesToUpdate.push({ itemAnkamaId: req.item_ankama_id, price })
+      }
+    })
+
+    if (pricesToUpdate.length > 0) {
+      if (onUpdateMultipleRefPrices) {
+        onUpdateMultipleRefPrices(pricesToUpdate)
+      } else {
+        pricesToUpdate.forEach(p => onUpdateRefPrice(p.itemAnkamaId, p.price))
+      }
+      setQuickToast(`🏷️ ${pricesToUpdate.length} prix de référence enregistrés sans stock !`)
+      setTimeout(() => setQuickToast(null), 3000)
+    }
+  }
+
   const estimatedCraft = estimateCraftCostFromPastPurchases(
     enrichedRecipe,
     latestKnownPrices,
@@ -170,6 +345,14 @@ export const CraftWorkshop: React.FC<CraftWorkshopProps> = ({
 
   return (
     <div className="space-y-5 animate-in fade-in duration-200">
+      {/* Toast Feedback */}
+      {quickToast && (
+        <div className="fixed top-5 right-5 z-50 bg-[#161b22] border border-yellow-500/80 text-yellow-300 px-4 py-2.5 rounded-xl shadow-2xl text-xs font-bold flex items-center gap-2 animate-in slide-in-from-top duration-150">
+          <Check className="w-4 h-4 text-yellow-400" />
+          <span>{quickToast}</span>
+        </div>
+      )}
+
       {/* Product Hero Header */}
       <div className="bg-[#161b22] border border-[#30363d] rounded-2xl p-5">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
@@ -276,55 +459,65 @@ export const CraftWorkshop: React.FC<CraftWorkshopProps> = ({
 
         {/* Estimation Details Accordion */}
         {showEstimationDetails && estimatedCraft.ingredients.length > 0 && (
-          <div className="mt-4 pt-4 border-t border-[#30363d] bg-[#0d1117] p-3.5 rounded-xl space-y-2 animate-in slide-in-from-top-1">
+          <div className="mt-4 pt-4 border-t border-[#30363d] space-y-2 animate-in fade-in">
             <div className="flex items-center justify-between text-xs">
-              <span className="font-bold text-yellow-400 flex items-center gap-1.5">
+              <span className="font-bold text-yellow-400 uppercase tracking-wider flex items-center gap-1.5">
                 <Zap className="w-3.5 h-3.5" />
-                Détail de l'estimation basée sur vos derniers prix d'achats :
+                Détail du Prix Estimé (Historique de vos achats HDV) :
               </span>
-              <span className="text-[10px] text-slate-500">
-                (Ne pas se fier à 100%, indicatif selon vos dates d'achats)
-              </span>
+              <button
+                type="button"
+                onClick={() => setShowEstimationDetails(false)}
+                className="text-slate-400 hover:text-white text-xs underline"
+              >
+                Fermer
+              </button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
-              {estimatedCraft.ingredients.map(ing => (
-                <div key={ing.item_ankama_id} className="p-2 bg-[#161b22] border border-[#30363d] rounded-lg text-xs flex items-center justify-between gap-2">
-                  <div className="truncate">
-                    <span className="font-bold text-white block truncate">{ing.item_name}</span>
-                    <span className="text-[10px] text-slate-400">{ing.quantity} u</span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+              {estimatedCraft.ingredients.map((ing) => (
+                <div
+                  key={ing.item_ankama_id}
+                  className="p-2 bg-[#0d1117] border border-[#30363d] rounded-xl flex items-center justify-between gap-2"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <img src={ing.item_icon} alt={ing.item_name} className="w-6 h-6 object-contain shrink-0" />
+                    <div className="truncate">
+                      <span className="font-semibold text-white truncate block">{ing.item_name}</span>
+                      <span className="text-[10px] text-slate-500">
+                        {ing.hasKnownPrice ? (
+                          <>Dernier: {formatKamas(ing.unitPrice)}/u {ing.date ? `(${formatDate(ing.date)})` : ''}</>
+                        ) : (
+                          <span className="text-amber-400">Prix non indexé</span>
+                        )}
+                      </span>
+                    </div>
                   </div>
-                  <div className="text-right shrink-0">
-                    {ing.hasKnownPrice ? (
-                      <>
-                        <span className="font-mono text-yellow-400 font-bold block">{formatKamas(ing.unitPrice)} / u</span>
-                        <span className="text-[9px] text-slate-500">{ing.date ? formatDate(ing.date) : 'Prix réf'}</span>
-                      </>
-                    ) : (
-                      <span className="text-[10px] text-slate-500 italic">Prix inconnu</span>
-                    )}
-                  </div>
+                  <span className="font-mono text-yellow-400 font-bold shrink-0">
+                    {ing.hasKnownPrice ? formatKamas(ing.totalCost) : '-'}
+                  </span>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* Dropdown Item Search Selector */}
+        {/* Picker Dropdown */}
         {showPicker && (
-          <div className="mt-4 pt-4 border-t border-[#30363d] space-y-3">
+          <div className="mt-4 pt-4 border-t border-[#30363d] space-y-3 animate-in fade-in">
             <div className="relative">
-              <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+              <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-500" />
               <input
                 type="text"
                 value={pickerSearch}
                 onChange={(e) => setPickerSearch(e.target.value)}
-                placeholder="Rechercher parmi tous les items craftables (ex: Voile d'Encre, Gelano, Dofus)..."
+                placeholder="Rechercher un équipement à crafter (ex: Voile d'Encre, Gelano, Strigide...)"
                 className="w-full pl-9 pr-4 py-2 bg-[#0d1117] border border-[#30363d] rounded-xl text-xs text-white placeholder-slate-500 outline-none focus:border-yellow-500"
+                autoFocus
               />
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 max-h-60 overflow-y-auto pr-1">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 max-h-48 overflow-y-auto">
               {pickerResults.map((item) => (
                 <button
                   key={item.ankama_id}
@@ -332,24 +525,20 @@ export const CraftWorkshop: React.FC<CraftWorkshopProps> = ({
                     setActiveItem(item)
                     onSelectItem(item)
                     setShowPicker(false)
+                    setPickerSearch('')
                   }}
-                  className={`p-2 rounded-xl border text-left transition flex items-center gap-2 ${
-                    activeItem?.ankama_id === item.ankama_id
-                      ? 'bg-yellow-500/10 border-yellow-500'
-                      : 'bg-[#0d1117] border-[#30363d] hover:border-slate-500 hover:bg-[#21262d]'
-                  }`}
+                  className="p-2 bg-[#0d1117] hover:bg-[#21262d] border border-[#30363d] hover:border-yellow-500 rounded-xl flex items-center gap-2 text-left transition group"
                 >
                   <img
                     src={item.image_urls?.icon}
                     alt={item.name}
-                    className="w-8 h-8 object-contain shrink-0"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src = 'https://api.dofusdu.de/dofus3/v1/img/item/0-64.png'
-                    }}
+                    className="w-7 h-7 object-contain group-hover:scale-105 transition"
                   />
                   <div className="overflow-hidden">
-                    <p className="text-xs font-bold text-white truncate">{item.name}</p>
-                    <p className="text-[10px] text-slate-400">Niv. {item.level}</p>
+                    <p className="text-xs font-bold text-white group-hover:text-yellow-400 truncate">
+                      {item.name}
+                    </p>
+                    <span className="text-[10px] text-slate-500">Niv. {item.level}</span>
                   </div>
                 </button>
               ))}
@@ -358,25 +547,45 @@ export const CraftWorkshop: React.FC<CraftWorkshopProps> = ({
         )}
       </div>
 
-      {/* Main Two Columns: Recipe Checklist & Financial Summary */}
+      {/* Main Dual-Column Workshop Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-        {/* Left Column (7 cols): Recipe Requirements Matrix */}
+        {/* Left Column (7 cols): Recipe Requirements & Inline Quick HDV Purchasing */}
         <div className="lg:col-span-7 space-y-3">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
             <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
               <Layers className="w-4 h-4 text-yellow-400" />
-              Ingrédients Requis ({craftQty}x)
+              Ingrédients Requis ({requirements.length})
             </h2>
 
-            {isFullySatisfied ? (
-              <span className="text-xs font-bold text-emerald-400 bg-emerald-950/60 px-2.5 py-0.5 rounded-full border border-emerald-800 flex items-center gap-1">
-                <CheckCircle2 className="w-3 h-3" />
-                100% en Stock
-              </span>
-            ) : (
-              <span className="text-xs font-bold text-rose-400 bg-rose-950/60 px-2.5 py-0.5 rounded-full border border-rose-800 flex items-center gap-1">
-                <AlertTriangle className="w-3 h-3" />
-                Ressources Manquantes
+            {/* Master 1-Click Fast Action Bar */}
+            {requirements.length > 0 && !isFullySatisfied && (
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <button
+                  type="button"
+                  onClick={handleBuyAllMissingInline}
+                  className="px-3 py-1.5 bg-yellow-500 hover:bg-yellow-400 text-slate-950 text-xs font-black rounded-xl transition flex items-center gap-1.5 shadow-sm"
+                  title="Acheter et ajouter au stock toutes les ressources manquantes en 1 clic"
+                >
+                  <PackagePlus className="w-3.5 h-3.5" />
+                  <span>⚡ Tout Stocker en 1 Clic</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleIndexAllPricesOnly}
+                  className="px-2.5 py-1.5 bg-[#21262d] hover:bg-[#30363d] text-slate-200 text-xs font-bold rounded-xl transition flex items-center gap-1"
+                  title="Enregistrer les prix saisis sans ajouter au stock"
+                >
+                  <Tag className="w-3.5 h-3.5 text-yellow-400" />
+                  <span>🏷️ Prix Seuls</span>
+                </button>
+              </div>
+            )}
+
+            {isFullySatisfied && (
+              <span className="text-xs font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-800 px-2.5 py-1 rounded-lg flex items-center gap-1">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                Stock complet pour x{craftQty} !
               </span>
             )}
           </div>
@@ -394,87 +603,99 @@ export const CraftWorkshop: React.FC<CraftWorkshopProps> = ({
             <div className="bg-[#161b22] border border-[#30363d] rounded-2xl divide-y divide-[#21262d] overflow-hidden">
               {requirements.map((req) => {
                 const latest = latestKnownPrices[req.item_ankama_id]
+                const row = inlineInputs[req.item_ankama_id] || { price: '', qty: req.missing_qty.toString() }
 
                 return (
                   <div
                     key={req.item_ankama_id}
-                    className={`p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 ${
+                    className={`p-3 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 ${
                       !req.is_satisfied
                         ? 'bg-rose-950/20 border-l-4 border-rose-500'
                         : 'hover:bg-[#21262d]/40 border-l-4 border-emerald-500'
                     }`}
                   >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-10 h-10 bg-[#0d1117] rounded-xl border border-[#30363d] p-1 flex items-center justify-center shrink-0">
+                    {/* Left: Icon & Info */}
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                      <div className="w-9 h-9 bg-[#0d1117] rounded-xl border border-[#30363d] p-1 flex items-center justify-center shrink-0">
                         <img
                           src={req.icon}
                           alt={req.name}
-                          className="w-8 h-8 object-contain"
+                          className="w-7 h-7 object-contain"
                           onError={(e) => {
                             (e.target as HTMLImageElement).src = 'https://api.dofusdu.de/dofus3/v1/img/item/0-64.png'
                           }}
                         />
                       </div>
-                      <div className="truncate">
+                      <div className="truncate flex-1">
                         <p className="text-xs font-bold text-white truncate">{req.name}</p>
-                        <div className="flex items-center gap-2 text-[11px] text-slate-400">
+                        <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
                           <span>Requis : <strong className="text-yellow-400">{req.required_qty}</strong></span>
                           <span>•</span>
                           <span className={req.available_qty >= req.required_qty ? 'text-emerald-400 font-bold' : 'text-slate-400'}>
                             En stock : {req.available_qty}
                           </span>
+                          {!req.is_satisfied && (
+                            <>
+                              <span>•</span>
+                              <span className="text-rose-400 font-bold font-mono">Manque: -{req.missing_qty}</span>
+                            </>
+                          )}
                         </div>
-                        {latest && latest.price > 0 && (
-                          <span className="text-[10px] text-slate-500 block">
-                            Dernier achat : {formatKamas(latest.price)}/u {latest.date ? `(${formatDate(latest.date)})` : ''}
-                          </span>
-                        )}
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
-                      {req.is_satisfied ? (
-                        <div className="text-right">
-                          <span className="text-xs font-bold text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800">
-                            Dispo
-                          </span>
-                          <p className="text-[10px] text-slate-400 font-mono mt-0.5">
-                            PRU: {formatKamas(req.stock_pru)}/u
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="text-right">
-                          <span className="text-xs font-bold text-rose-400 bg-rose-950/80 px-2 py-0.5 rounded border border-rose-800">
-                            Manque : -{req.missing_qty}
-                          </span>
-                          <p className="text-[10px] text-rose-400 font-mono mt-0.5">
-                            Est. {formatKamas(req.missing_cost_estimated)}
-                          </p>
-                        </div>
-                      )}
+                    {/* Right: Direct Inline Inputs & 1-Click Action Buttons */}
+                    <div className="flex items-center gap-2 shrink-0 flex-wrap sm:flex-nowrap justify-end">
+                      {/* Inline Unit Price Input */}
+                      <div className="relative">
+                        <input
+                          type="number"
+                          value={row.price}
+                          onChange={(e) => handleUpdateInlineRow(req.item_ankama_id, 'price', e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleInlineBuyBatch(req)
+                          }}
+                          placeholder="Prix/u"
+                          className="w-20 pl-2 pr-4 py-1 bg-[#0d1117] border border-[#30363d] rounded-lg text-xs font-mono text-yellow-400 placeholder-slate-600 focus:border-yellow-500 outline-none"
+                        />
+                        <span className="absolute right-1.5 top-1 text-[10px] text-slate-500 font-bold pointer-events-none">K</span>
+                      </div>
 
-                      {!req.is_satisfied && (
-                        <button
-                          onClick={() =>
-                            onOpenHDVWithItem(
-                              {
-                                ankama_id: req.item_ankama_id,
-                                name: req.name,
-                                type: { id: 0, name: req.type },
-                                level: 1,
-                                image_urls: { icon: req.icon },
-                                category: 'resources'
-                              },
-                              req.missing_qty
-                            )
-                          }
-                          className="px-2.5 py-1.5 bg-rose-500 hover:bg-rose-400 text-slate-950 rounded-lg text-xs font-bold flex items-center gap-1 transition shrink-0"
-                          title="Acheter les ressources manquantes sur l'HDV"
-                        >
-                          <ShoppingCart className="w-3 h-3" />
-                          <span>Acheter +{req.missing_qty}</span>
-                        </button>
-                      )}
+                      {/* Inline Quantity Input */}
+                      <div className="relative">
+                        <input
+                          type="number"
+                          min="1"
+                          value={row.qty}
+                          onChange={(e) => handleUpdateInlineRow(req.item_ankama_id, 'qty', e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleInlineBuyBatch(req)
+                          }}
+                          placeholder="Qté"
+                          className="w-14 px-1.5 py-1 bg-[#0d1117] border border-[#30363d] rounded-lg text-xs font-mono text-white text-center focus:border-yellow-500 outline-none"
+                        />
+                      </div>
+
+                      {/* 1-Click Buy & Add to Stock */}
+                      <button
+                        type="button"
+                        onClick={() => handleInlineBuyBatch(req)}
+                        className="px-2.5 py-1 bg-yellow-500 hover:bg-yellow-400 text-slate-950 font-bold rounded-lg text-xs flex items-center gap-1 transition shadow-xs shrink-0"
+                        title="Ajouter directement ce lot au stock"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Stocker</span>
+                      </button>
+
+                      {/* 1-Click Save Reference Price Only */}
+                      <button
+                        type="button"
+                        onClick={() => handleInlineIndexPrice(req)}
+                        className="px-2 py-1 bg-[#0d1117] hover:bg-[#21262d] border border-[#30363d] hover:border-yellow-500 text-slate-300 hover:text-white rounded-lg text-xs font-semibold transition shrink-0"
+                        title="Enregistrer le prix unitaire comme référence sans ajouter au stock"
+                      >
+                        <Tag className="w-3 h-3 text-yellow-400" />
+                      </button>
                     </div>
                   </div>
                 )

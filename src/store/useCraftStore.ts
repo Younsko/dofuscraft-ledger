@@ -282,6 +282,19 @@ export function useCraftStore() {
     }))
   }, [])
 
+  // Update multiple reference prices (for price-only indexation without adding batches)
+  const updateMultipleRefPrices = useCallback((prices: Array<{ itemAnkamaId: number; price: number }>) => {
+    setReferencePrices(prev => {
+      const updated = { ...prev }
+      prices.forEach(p => {
+        if (p.price > 0 && p.itemAnkamaId) {
+          updated[p.itemAnkamaId] = p.price
+        }
+      })
+      return updated
+    })
+  }, [])
+
   // Execute Craft (FIFO stock deduction & batch creation)
   const executeCraft = useCallback((
     item: DofusItem,
@@ -604,6 +617,7 @@ export function useCraftStore() {
     deleteBatch,
     clearBatchesByCategory,
     updateReferencePrice,
+    updateMultipleRefPrices,
     executeCraft,
     recordSale,
     recordCrush,
