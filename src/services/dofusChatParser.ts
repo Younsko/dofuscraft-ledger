@@ -68,31 +68,32 @@ export async function parseDofusChatText(text: string): Promise<ParsedPurchaseLi
     // ==========================================
     // PATTERN 1: [12:15] 1 x [Tourmaline] (69 185 kamas)
     // or 10 x [Porte-bonheur de Malalfa] (1 974 kamas)
+    // or with any brackets [], {}, (), ||
     // ==========================================
-    const p1 = cleaned.match(/^(\d+)\s*x\s*\[([^\]]+)\]\s*\(([\d\s\.,kKmM]+)\s*kamas?\)/i)
+    const p1 = cleaned.match(/^(\d+)\s*x\s*[\[\{\|\(]?([^\]\}\)\|\(]+)[\]\}\)\|\)]?\s*\(([\d\s\.,kKmM]+)\s*(?:kamas?|k)?\)/i)
     if (p1 && p1[1] && p1[2] && p1[3]) {
       parsedQty = parseInt(p1[1].replace(/\s/g, ''), 10) || 1
-      parsedName = p1[2].trim()
+      parsedName = p1[2].replace(/[\[\]\{\}\(\)\|'"`]/g, '').trim()
       parsedPrice = parseKamaInput(p1[3])
     }
 
     // ==========================================
-    // PATTERN 2: 1 x [Tourmaline] (69 185) or without "kamas" inside parens
+    // PATTERN 2: General fallback: QTY x ITEM (PRICE)
     // ==========================================
     if (!parsedName) {
-      const p2 = cleaned.match(/^(\d+)\s*x\s*\[([^\]]+)\]\s*\(([\d\s\.,kKmM]+)\)/i)
+      const p2 = cleaned.match(/^(\d+)\s*x\s*(.+?)\s*\(([\d\s\.,kKmM]+)(?:\s*kamas?)?\)/i)
       if (p2 && p2[1] && p2[2] && p2[3]) {
         parsedQty = parseInt(p2[1].replace(/\s/g, ''), 10) || 1
-        parsedName = p2[2].trim()
+        parsedName = p2[2].replace(/[\[\]\{\}\(\)\|'"`]/g, '').trim()
         parsedPrice = parseKamaInput(p2[3])
       }
     }
 
     // ==========================================
-    // PATTERN 3: 1 x Tourmaline (69 185 kamas) - without brackets
+    // PATTERN 3: Standard "Vous avez acheté 100 [Gelée] pour 120 000 kamas"
     // ==========================================
     if (!parsedName) {
-      const p3 = cleaned.match(/^(\d+)\s*x\s*(.+?)\s*\(([\d\s\.,kKmM]+)\s*kamas?\)/i)
+      const p3 = cleaned.match(/^Vous avez achet[ée]\s+(\d+)\s*['"\[]?([^'\"\]]+)['"\]]?\s*pour\s*([\d\s\.,kKmM]+)\s*kamas?/i)
       if (p3 && p3[1] && p3[2] && p3[3]) {
         parsedQty = parseInt(p3[1].replace(/\s/g, ''), 10) || 1
         parsedName = p3[2].trim()
@@ -101,26 +102,14 @@ export async function parseDofusChatText(text: string): Promise<ParsedPurchaseLi
     }
 
     // ==========================================
-    // PATTERN 4: Standard "Vous avez acheté 100 [Gelée] pour 120 000 kamas"
+    // PATTERN 4: 10 x [Item] pour 120k / 10x [Item] = 120k / 10 [Item] 120000
     // ==========================================
     if (!parsedName) {
-      const p4 = cleaned.match(/^Vous avez achet[ée]\s+(\d+)\s*['"\[]?([^'\"\]]+)['"\]]?\s*pour\s*([\d\s\.,kKmM]+)\s*kamas?/i)
+      const p4 = cleaned.match(/^(\d+)\s*(?:x|\*|\s)\s*\[([^\]]+)\]\s*(?:pour|à|=|\:)?\s*([\d\s\.,kKmM]+)\s*(?:k|kamas)?$/i)
       if (p4 && p4[1] && p4[2] && p4[3]) {
         parsedQty = parseInt(p4[1].replace(/\s/g, ''), 10) || 1
         parsedName = p4[2].trim()
         parsedPrice = parseKamaInput(p4[3])
-      }
-    }
-
-    // ==========================================
-    // PATTERN 5: 10 x [Item] pour 120k / 10x [Item] = 120k / 10 [Item] 120000
-    // ==========================================
-    if (!parsedName) {
-      const p5 = cleaned.match(/^(\d+)\s*(?:x|\*|\s)\s*\[([^\]]+)\]\s*(?:pour|à|=|\:)?\s*([\d\s\.,kKmM]+)\s*(?:k|kamas)?$/i)
-      if (p5 && p5[1] && p5[2] && p5[3]) {
-        parsedQty = parseInt(p5[1].replace(/\s/g, ''), 10) || 1
-        parsedName = p5[2].trim()
-        parsedPrice = parseKamaInput(p5[3])
       }
     }
 
