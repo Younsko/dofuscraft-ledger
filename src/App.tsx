@@ -23,6 +23,7 @@ export const App: React.FC = () => {
     craftHistory,
     salesHistory,
     referencePrices,
+    latestKnownPrices,
     craftPlan,
     activeTab,
     selectedItemForCraft,
@@ -116,6 +117,7 @@ export const App: React.FC = () => {
             selectedItem={selectedItemForCraft}
             stockItems={stockItems}
             referencePrices={referencePrices}
+            latestKnownPrices={latestKnownPrices}
             onSelectItem={setSelectedItemForCraft}
             onExecuteCraft={executeCraft}
             onOpenHDVWithItem={(item) => handleOpenHDVModal(item)}
@@ -157,6 +159,7 @@ export const App: React.FC = () => {
           <RecipeBrowserView
             stockItems={stockItems}
             referencePrices={referencePrices}
+            latestKnownPrices={latestKnownPrices}
             searchQuery={globalSearch}
             onSelectForCraft={handleSelectForCraft}
             onOpenHDVWithItem={(item) => handleOpenHDVModal(item)}

@@ -8,15 +8,17 @@ import {
   PackageX,
   Layers,
   Sparkles,
-  Info
+  Info,
+  Zap
 } from 'lucide-react'
 import { DofusItem, StockItem, DofusRecipeIngredient } from '../types'
 import { searchDofusItems, fetchItemById, enrichRecipeIngredients } from '../services/dofusApi'
-import { formatKamas } from '../utils/formatters'
+import { formatKamas, estimateCraftCostFromPastPurchases, formatDate } from '../utils/formatters'
 
 interface RecipeBrowserViewProps {
   stockItems: StockItem[]
   referencePrices: Record<number, number>
+  latestKnownPrices?: Record<number, { price: number; date?: string }>
   searchQuery: string
   onSelectForCraft: (item: DofusItem) => void
   onOpenHDVWithItem: (item: DofusItem) => void
@@ -26,6 +28,7 @@ interface RecipeBrowserViewProps {
 export const RecipeBrowserView: React.FC<RecipeBrowserViewProps> = ({
   stockItems,
   referencePrices,
+  latestKnownPrices = {},
   searchQuery,
   onSelectForCraft,
   onOpenHDVWithItem,
@@ -95,20 +98,24 @@ export const RecipeBrowserView: React.FC<RecipeBrowserViewProps> = ({
     { id: 'consumables', label: '🧪 Consommables' }
   ]
 
+  const detailedEstimation = selectedItemDetail && detailedRecipe.length > 0
+    ? estimateCraftCostFromPastPurchases(detailedRecipe, latestKnownPrices)
+    : null
+
   return (
     <div className="space-y-4 animate-in fade-in duration-200">
       {/* Category Chips & Filter Bar (YouTube / Vinted style) */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-[#161b22] p-3 rounded-2xl border border-[#30363d]">
-        {/* Category pills */}
-        <div className="flex gap-1.5 overflow-x-auto pb-1 sm:pb-0 text-xs scrollbar-none">
+      <div className="bg-[#161b22] border border-[#30363d] rounded-2xl p-4 space-y-3">
+        {/* Category Pills */}
+        <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs">
           {categories.map((c) => (
             <button
               key={c.id}
               onClick={() => setCategory(c.id)}
-              className={`px-3 py-1.5 rounded-full font-semibold transition whitespace-nowrap text-xs ${
+              className={`px-3.5 py-1.5 rounded-full font-bold whitespace-nowrap transition ${
                 category === c.id
-                  ? 'bg-yellow-400 text-slate-950 font-bold shadow-sm'
-                  : 'bg-[#21262d] text-slate-300 hover:text-white hover:bg-[#30363d]'
+                  ? 'bg-yellow-400 text-slate-950 font-black shadow-xs'
+                  : 'bg-[#0d1117] text-slate-300 hover:text-white border border-[#30363d]'
               }`}
             >
               {c.label}
@@ -117,43 +124,65 @@ export const RecipeBrowserView: React.FC<RecipeBrowserViewProps> = ({
         </div>
 
         {/* Level Range Filter */}
-        <div className="flex items-center gap-2 text-xs text-slate-400 bg-[#0d1117] px-3 py-1.5 rounded-full border border-[#30363d] self-start sm:self-auto">
-          <SlidersHorizontal className="w-3.5 h-3.5 text-slate-500" />
-          <span>Niveau :</span>
-          <input
-            type="number"
-            min="1"
-            max="200"
-            value={minLevel}
-            onChange={(e) => setMinLevel(parseInt(e.target.value) || 1)}
-            className="w-12 px-1 py-0.5 bg-[#161b22] border border-[#30363d] rounded text-center text-yellow-400 font-mono"
-          />
-          <span>à</span>
-          <input
-            type="number"
-            min="1"
-            max="200"
-            value={maxLevel}
-            onChange={(e) => setMaxLevel(parseInt(e.target.value) || 200)}
-            className="w-12 px-1 py-0.5 bg-[#161b22] border border-[#30363d] rounded text-center text-yellow-400 font-mono"
-          />
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2 border-t border-[#21262d] text-xs">
+          <div className="flex items-center gap-2 text-slate-300 font-medium">
+            <SlidersHorizontal className="w-3.5 h-3.5 text-yellow-400" />
+            <span>Filtre Niveau :</span>
+            <span className="font-mono text-yellow-400 font-bold">{minLevel} - {maxLevel}</span>
+          </div>
+
+          <div className="flex items-center gap-2 flex-1 max-w-sm">
+            <input
+              type="range"
+              min="1"
+              max="200"
+              value={maxLevel}
+              onChange={(e) => setMaxLevel(parseInt(e.target.value) || 200)}
+              className="w-full accent-yellow-400 cursor-pointer h-1.5 bg-[#21262d] rounded-lg"
+            />
+          </div>
+
+          <div className="flex gap-1 text-[11px]">
+            {[
+              { label: 'Tous (1-200)', min: 1, max: 200 },
+              { label: '1-50', min: 1, max: 50 },
+              { label: '51-120', min: 51, max: 120 },
+              { label: '121-199', min: 121, max: 199 },
+              { label: '200 (THL)', min: 200, max: 200 }
+            ].map((p) => (
+              <button
+                key={p.label}
+                onClick={() => {
+                  setMinLevel(p.min)
+                  setMaxLevel(p.max)
+                }}
+                className={`px-2 py-1 rounded border transition ${
+                  minLevel === p.min && maxLevel === p.max
+                    ? 'bg-yellow-400 text-slate-950 font-bold border-yellow-400'
+                    : 'bg-[#0d1117] text-slate-400 border-[#30363d] hover:text-white'
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
-      {/* Product Grid (Vinted Product Cards Layout) */}
+      {/* Product Grid Feed (Vinted Style) */}
       {isLoading ? (
-        <div className="bg-[#161b22] rounded-2xl border border-[#30363d] p-16 text-center text-slate-400">
-          <div className="inline-block animate-spin w-8 h-8 border-2 border-yellow-500 border-t-transparent rounded-full mb-3" />
-          <p className="text-xs">Chargement du catalogue Dofus 3...</p>
+        <div className="bg-[#161b22] border border-[#30363d] rounded-2xl p-16 text-center text-slate-400 text-xs">
+          <div className="w-6 h-6 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+          <span>Chargement du catalogue Dofus 3...</span>
         </div>
       ) : results.length === 0 ? (
-        <div className="bg-[#161b22] rounded-2xl border border-[#30363d] p-16 text-center text-slate-400 space-y-2">
-          <PackageX className="w-10 h-10 text-slate-600 mx-auto" />
+        <div className="bg-[#161b22] border border-[#30363d] rounded-2xl p-16 text-center text-slate-400 space-y-2">
+          <Layers className="w-10 h-10 text-slate-600 mx-auto" />
           <p className="font-bold text-slate-200 text-sm">Aucun item trouvé.</p>
-          <p className="text-xs text-slate-500">Essayez une autre recherche dans la barre supérieure.</p>
+          <p className="text-xs text-slate-500">Essayez un autre mot-clé ou élargissez la tranche de niveau.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3.5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
           {results.map((item) => {
             const stock = stockMap.get(item.ankama_id)
             const refPrice = referencePrices[item.ankama_id] || (stock ? stock.pru : null)
@@ -161,22 +190,23 @@ export const RecipeBrowserView: React.FC<RecipeBrowserViewProps> = ({
             return (
               <div
                 key={item.ankama_id}
-                className="vinted-card rounded-xl overflow-hidden flex flex-col justify-between group cursor-pointer"
                 onClick={() => handleInspect(item)}
+                className="vinted-card rounded-2xl overflow-hidden cursor-pointer flex flex-col group active:scale-98"
               >
-                {/* Product Image Box */}
-                <div className="vinted-img-box h-32 relative flex items-center justify-center p-3 border-b border-[#21262d]">
+                {/* Product Image Frame */}
+                <div className="vinted-img-box aspect-square relative flex items-center justify-center p-3 border-b border-[#21262d] overflow-hidden">
                   <img
                     src={item.image_urls?.icon}
                     alt={item.name}
-                    className="w-16 h-16 object-contain group-hover:scale-105 transition-transform duration-200"
+                    className="w-16 h-16 object-contain group-hover:scale-110 transition duration-200 drop-shadow-md"
+                    loading="lazy"
                     onError={(e) => {
                       (e.target as HTMLImageElement).src = 'https://api.dofusdu.de/dofus3/v1/img/item/0-64.png'
                     }}
                   />
 
                   {/* Level Pill */}
-                  <span className="absolute top-2 left-2 px-1.5 py-0.5 bg-[#0d1117]/80 text-yellow-400 border border-[#30363d] text-[10px] font-mono font-bold rounded">
+                  <span className="absolute top-2 left-2 px-1.5 py-0.5 bg-[#0d1117]/90 backdrop-blur-xs text-yellow-400 border border-[#30363d] text-[10px] font-mono font-bold rounded">
                     Niv. {item.level}
                   </span>
 
@@ -189,7 +219,7 @@ export const RecipeBrowserView: React.FC<RecipeBrowserViewProps> = ({
                   ) : null}
                 </div>
 
-                {/* Product Content (Vinted style) */}
+                {/* Product Content */}
                 <div className="p-3 flex-1 flex flex-col justify-between space-y-2">
                   <div>
                     {/* Price Tag */}
@@ -232,7 +262,7 @@ export const RecipeBrowserView: React.FC<RecipeBrowserViewProps> = ({
         </div>
       )}
 
-      {/* Product Detail Modal (Vinted Style Drawer/Modal) */}
+      {/* Product Detail Modal */}
       {selectedItemDetail && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs animate-in fade-in">
           <div className="relative w-full max-w-lg bg-[#161b22] border border-[#30363d] rounded-2xl shadow-2xl overflow-hidden p-6 space-y-4 max-h-[90vh] overflow-y-auto">
@@ -275,47 +305,64 @@ export const RecipeBrowserView: React.FC<RecipeBrowserViewProps> = ({
               </p>
             )}
 
+            {/* Estimated Craft Cost Card */}
+            {detailedEstimation && detailedEstimation.totalEstimatedCost > 0 && (
+              <div className="p-3.5 bg-[#0d1117] rounded-xl border border-[#30363d] space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-yellow-400 flex items-center gap-1.5">
+                    <Zap className="w-3.5 h-3.5" />
+                    Estimation Coût de Craft (Derniers Achats) :
+                  </span>
+                  <span className="font-mono text-sm font-black text-yellow-400">
+                    {formatKamas(detailedEstimation.totalEstimatedCost)}
+                  </span>
+                </div>
+                <p className="text-[10px] text-slate-400">
+                  Calculé à partir de vos derniers prix d'achat enregistrés ({detailedEstimation.knownIngredientsCount}/{detailedEstimation.totalIngredientsCount} ingrédients connus).
+                </p>
+              </div>
+            )}
+
             {/* Recipe Ingredients Breakdown */}
             <div className="space-y-2">
               <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
                 <Layers className="w-3.5 h-3.5 text-yellow-400" />
-                Ingrédients requis pour fabriquer 1x :
+                Recette de fabrication ({detailedRecipe.length} ingrédients) :
               </h4>
 
               {isLoadingRecipe ? (
-                <div className="p-6 text-center text-xs text-slate-400">
-                  Chargement de la recette...
-                </div>
+                <p className="text-xs text-slate-500 py-3">Chargement de la recette...</p>
               ) : detailedRecipe.length === 0 ? (
-                <div className="p-4 bg-[#0d1117] rounded-xl border border-[#30363d] text-center text-xs text-slate-500">
-                  Cet item ne possède pas de recette (ressource brute ou drop).
-                </div>
+                <p className="text-xs text-slate-500 py-3">Aucune recette pour cet item.</p>
               ) : (
-                <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
                   {detailedRecipe.map((ing) => {
-                    const ingStock = stockMap.get(ing.item_ankama_id)
-                    const hasQty = ingStock ? ingStock.total_quantity : 0
+                    const known = latestKnownPrices[ing.item_ankama_id]
 
                     return (
                       <div
                         key={ing.item_ankama_id}
                         className="p-2 bg-[#0d1117] rounded-xl border border-[#30363d] flex items-center justify-between text-xs"
                       >
-                        <div className="flex items-center gap-2.5">
+                        <div className="flex items-center gap-2 min-w-0">
                           <img
                             src={ing.item_icon}
                             alt={ing.item_name}
-                            className="w-6 h-6 object-contain"
+                            className="w-6 h-6 object-contain shrink-0"
                           />
-                          <span className="text-slate-200 font-medium">{ing.item_name}</span>
+                          <span className="font-semibold text-slate-200 truncate">
+                            {ing.item_name}
+                          </span>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-slate-400">
-                            Requis : <strong className="text-yellow-400">{ing.quantity}</strong>
+                        <div className="text-right shrink-0">
+                          <span className="font-mono text-yellow-400 font-bold block">
+                            x{ing.quantity}
                           </span>
-                          <span className={`font-mono text-[11px] ${hasQty >= ing.quantity ? 'text-emerald-400' : 'text-rose-400'}`}>
-                            (Stock: {hasQty})
-                          </span>
+                          {known && known.price > 0 && (
+                            <span className="text-[9px] text-slate-500 font-mono">
+                              Dernier: {formatKamas(known.price)}/u
+                            </span>
+                          )}
                         </div>
                       </div>
                     )
@@ -324,17 +371,17 @@ export const RecipeBrowserView: React.FC<RecipeBrowserViewProps> = ({
               )}
             </div>
 
-            {/* Modal Actions */}
-            <div className="flex items-center gap-2.5 pt-2 border-t border-[#30363d]">
+            {/* Actions */}
+            <div className="flex items-center gap-2 pt-2 border-t border-[#30363d]">
               <button
                 onClick={() => {
                   onSelectForCraft(selectedItemDetail)
                   setSelectedItemDetail(null)
                 }}
-                className="flex-1 py-2.5 bg-yellow-500 hover:bg-yellow-400 text-slate-950 font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition"
+                className="flex-1 py-2.5 bg-yellow-500 hover:bg-yellow-400 text-slate-950 font-black rounded-xl text-xs flex items-center justify-center gap-2 transition"
               >
                 <Hammer className="w-4 h-4" />
-                <span>Simuler dans l'Atelier</span>
+                <span>Ouvrir dans l'Atelier de Craft</span>
               </button>
 
               <button
@@ -342,9 +389,10 @@ export const RecipeBrowserView: React.FC<RecipeBrowserViewProps> = ({
                   onOpenHDVWithItem(selectedItemDetail)
                   setSelectedItemDetail(null)
                 }}
-                className="px-4 py-2.5 bg-[#21262d] hover:bg-[#30363d] text-slate-200 font-semibold rounded-xl text-xs transition"
+                className="px-4 py-2.5 bg-[#21262d] hover:bg-[#30363d] text-slate-200 font-bold rounded-xl text-xs flex items-center gap-1.5 transition"
               >
-                + Achat HDV
+                <PackagePlus className="w-3.5 h-3.5" />
+                <span>Acheter HDV</span>
               </button>
             </div>
           </div>

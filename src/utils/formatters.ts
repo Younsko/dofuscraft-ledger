@@ -295,3 +295,115 @@ export function executeCraftDeduction(
     craftedBatch
   }
 }
+
+/**
+ * Get map of the latest known purchase price for every resource from purchase history
+ */
+export function getLatestKnownPrices(
+  batches: PurchaseBatch[],
+  fallbackRefPrices: Record<number, number> = {}
+): Record<number, { price: number; date?: string; batchId?: string }> {
+  const map: Record<number, { price: number; date?: string; batchId?: string }> = {}
+
+  // 1. First populate with fallback reference prices
+  Object.entries(fallbackRefPrices).forEach(([idStr, p]) => {
+    const id = parseInt(idStr, 10)
+    if (id && p > 0) {
+      map[id] = { price: p }
+    }
+  })
+
+  // 2. Sort batches chronologically ascending so newest batches overwrite older ones
+  const sortedBatches = [...batches].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+
+  for (const b of sortedBatches) {
+    if (b.unit_price > 0) {
+      map[b.item_ankama_id] = {
+        price: b.unit_price,
+        date: b.date,
+        batchId: b.id
+      }
+    }
+  }
+
+  return map
+}
+
+/**
+ * Estimate the craft cost of an item based on the latest purchase prices of its ingredients
+ */
+export function estimateCraftCostFromPastPurchases(
+  recipe: DofusRecipeIngredient[] = [],
+  latestPrices: Record<number, { price: number; date?: string }>,
+  craftMultiplier = 1
+): {
+  estimatedUnitCost: number
+  totalEstimatedCost: number
+  knownIngredientsCount: number
+  totalIngredientsCount: number
+  isComplete: boolean
+  coveragePercent: number
+  ingredients: Array<{
+    item_ankama_id: number
+    item_name?: string
+    item_icon?: string
+    quantity: number
+    unitPrice: number
+    totalCost: number
+    hasKnownPrice: boolean
+    date?: string
+  }>
+} {
+  if (!recipe || recipe.length === 0) {
+    return {
+      estimatedUnitCost: 0,
+      totalEstimatedCost: 0,
+      knownIngredientsCount: 0,
+      totalIngredientsCount: 0,
+      isComplete: false,
+      coveragePercent: 0,
+      ingredients: []
+    }
+  }
+
+  let totalUnitCost = 0
+  let knownCount = 0
+
+  const ingredients = recipe.map((ing) => {
+    const known = latestPrices[ing.item_ankama_id]
+    const hasKnownPrice = !!(known && known.price > 0)
+    const unitPrice = hasKnownPrice ? known.price : 0
+    const totalCost = unitPrice * (ing.quantity * craftMultiplier)
+
+    if (hasKnownPrice) {
+      knownCount++
+      totalUnitCost += unitPrice * ing.quantity
+    }
+
+    return {
+      item_ankama_id: ing.item_ankama_id,
+      item_name: ing.item_name,
+      item_icon: ing.item_icon,
+      quantity: ing.quantity * craftMultiplier,
+      unitPrice,
+      totalCost,
+      hasKnownPrice,
+      date: known?.date
+    }
+  })
+
+  const totalIngredientsCount = recipe.length
+  const isComplete = knownCount === totalIngredientsCount && totalIngredientsCount > 0
+  const coveragePercent = totalIngredientsCount > 0 ? Math.round((knownCount / totalIngredientsCount) * 100) : 0
+  const totalEstimatedCost = totalUnitCost * craftMultiplier
+
+  return {
+    estimatedUnitCost: totalUnitCost,
+    totalEstimatedCost,
+    knownIngredientsCount: knownCount,
+    totalIngredientsCount,
+    isComplete,
+    coveragePercent,
+    ingredients
+  }
+}

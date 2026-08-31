@@ -10,7 +10,8 @@ import {
 } from '../types'
 import {
   buildStockFromBatches,
-  executeCraftDeduction
+  executeCraftDeduction,
+  getLatestKnownPrices
 } from '../utils/formatters'
 import { DOFUS_SERVERS } from '../data/serversData'
 
@@ -145,6 +146,11 @@ export function useCraftStore() {
   const stockItems: StockItem[] = useMemo(() => {
     return buildStockFromBatches(batches)
   }, [batches])
+
+  // Latest known purchase price per item (sorted by most recent date)
+  const latestKnownPrices = useMemo(() => {
+    return getLatestKnownPrices(batches, referencePrices)
+  }, [batches, referencePrices])
 
   // Key Financial KPIs
   const totalStockValue = useMemo(() => {
@@ -423,6 +429,7 @@ export function useCraftStore() {
     craftHistory,
     salesHistory,
     referencePrices,
+    latestKnownPrices,
     craftPlan,
     activeTab,
     selectedItemForCraft,
