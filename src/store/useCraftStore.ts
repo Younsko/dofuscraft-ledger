@@ -34,7 +34,15 @@ export function useCraftStore() {
     try {
       const saved = localStorage.getItem(`dofuscraft_batches_${currentServer}_v3`) ||
                     localStorage.getItem('dofuscraft_batches_v2')
-      if (saved) return JSON.parse(saved)
+      if (saved) {
+        const parsed: PurchaseBatch[] = JSON.parse(saved)
+        const seen = new Set<string>()
+        return parsed.filter(b => {
+          if (seen.has(b.id)) return false
+          seen.add(b.id)
+          return true
+        })
+      }
     } catch (e) {
       console.error(e)
     }

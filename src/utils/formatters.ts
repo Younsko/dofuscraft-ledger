@@ -286,9 +286,6 @@ export function executeCraftDeduction(
     note: `Craft de ${craftQty}x ${targetItem.name} (PRU: ${formatKamas(unitCraftCost)})`
   }
 
-  // Add the newly crafted items to batches
-  batchesCopy.push(craftedBatch)
-
   return {
     updatedBatches: batchesCopy,
     newCraftRecord,
