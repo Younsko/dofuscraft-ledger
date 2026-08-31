@@ -1,23 +1,29 @@
 import React, { useState } from 'react'
 import { Navbar } from './components/Navbar'
-import { CraftWorkshop } from './components/CraftWorkshop'
 import { FastHDVIndexer } from './components/FastHDVIndexer'
+import { MultiCraftPlannerView } from './components/MultiCraftPlannerView'
+import { CraftWorkshop } from './components/CraftWorkshop'
 import { InventoryView } from './components/InventoryView'
 import { HDVHistoryView } from './components/HDVHistoryView'
 import { SalesTrackerView } from './components/SalesTrackerView'
 import { RecipeBrowserView } from './components/RecipeBrowserView'
 import { AnalyticsView } from './components/AnalyticsView'
 import { HDVPurchaseModal } from './components/HDVPurchaseModal'
+import { ServerSelectModal } from './components/ServerSelectModal'
 import { useCraftStore } from './store/useCraftStore'
 import { DofusItem, StockItem } from './types'
 
 export const App: React.FC = () => {
   const {
+    currentServer,
+    hasChosenServer,
+    switchServer,
     batches,
     stockItems,
     craftHistory,
     salesHistory,
     referencePrices,
+    craftPlan,
     activeTab,
     selectedItemForCraft,
     totalStockValue,
@@ -32,6 +38,10 @@ export const App: React.FC = () => {
     updateReferencePrice,
     executeCraft,
     recordSale,
+    addToCraftPlan,
+    updateCraftPlanQuantity,
+    removeFromCraftPlan,
+    clearCraftPlan,
     clearAllData,
     exportDataJson,
     importDataJson
@@ -39,6 +49,7 @@ export const App: React.FC = () => {
 
   const [globalSearch, setGlobalSearch] = useState('')
   const [isHDVModalOpen, setIsHDVModalOpen] = useState(false)
+  const [isServerModalOpen, setIsServerModalOpen] = useState(!hasChosenServer)
   const [preselectedHDVItem, setPreselectedHDVItem] = useState<DofusItem | null>(null)
 
   const handleOpenHDVModal = (item?: DofusItem) => {
@@ -46,7 +57,6 @@ export const App: React.FC = () => {
       setPreselectedHDVItem(item)
       setIsHDVModalOpen(true)
     } else {
-      // Direct jump to fast indexer without opening annoying modals!
       setActiveTab('fast-hdv' as any)
     }
   }
@@ -62,21 +72,45 @@ export const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#0d1117] text-[#e6edf3] flex flex-col selection:bg-yellow-500/30 selection:text-yellow-200">
-      {/* YouTube / Vinted Navbar */}
+      {/* Navbar with Server Switcher & PWA */}
       <Navbar
         activeTab={activeTab as any}
         onSelectTab={setActiveTab as any}
         onOpenHDVModal={() => handleOpenHDVModal()}
+        onOpenServerModal={() => setIsServerModalOpen(true)}
+        currentServer={currentServer}
         totalStockValue={totalStockValue}
         totalNetProfit={totalNetProfit}
         stockCount={stockItems.length}
         lotsCount={batches.length}
+        craftPlanCount={craftPlan.length}
         globalSearch={globalSearch}
         onGlobalSearchChange={setGlobalSearch}
       />
 
       {/* Main Content Body */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        {(activeTab as string) === 'fast-hdv' && (
+          <FastHDVIndexer
+            onAddMultipleBatches={addMultipleBatches}
+            onAddSingleBatch={addPurchaseBatch}
+          />
+        )}
+
+        {(activeTab as string) === 'multi-craft' && (
+          <MultiCraftPlannerView
+            craftPlan={craftPlan}
+            stockItems={stockItems}
+            referencePrices={referencePrices}
+            onUpdateQuantity={updateCraftPlanQuantity}
+            onRemovePlanItem={removeFromCraftPlan}
+            onClearPlan={clearCraftPlan}
+            onAddToPlan={addToCraftPlan}
+            onExecuteAllCrafts={executeCraft}
+            onOpenHDVWithItem={(item) => handleOpenHDVModal(item)}
+          />
+        )}
+
         {activeTab === 'workshop' && (
           <CraftWorkshop
             selectedItem={selectedItemForCraft}
@@ -86,13 +120,6 @@ export const App: React.FC = () => {
             onExecuteCraft={executeCraft}
             onOpenHDVWithItem={(item) => handleOpenHDVModal(item)}
             onUpdateRefPrice={updateReferencePrice}
-          />
-        )}
-
-        {(activeTab as string) === 'fast-hdv' && (
-          <FastHDVIndexer
-            onAddMultipleBatches={addMultipleBatches}
-            onAddSingleBatch={addPurchaseBatch}
           />
         )}
 
@@ -154,6 +181,15 @@ export const App: React.FC = () => {
         )}
       </main>
 
+      {/* Server Choice Modal (Onboarding & Switcher) */}
+      <ServerSelectModal
+        isOpen={isServerModalOpen}
+        currentServer={currentServer}
+        onClose={() => setIsServerModalOpen(false)}
+        onSelectServer={(s) => switchServer(s)}
+        isFirstVisit={!hasChosenServer}
+      />
+
       {/* Quick single item purchase modal */}
       <HDVPurchaseModal
         isOpen={isHDVModalOpen}
@@ -165,14 +201,14 @@ export const App: React.FC = () => {
         preselectedItem={preselectedHDVItem}
       />
 
-      {/* Clean Marketplace Footer */}
-      <footer className="mt-auto border-t border-[#21262d] bg-[#161b22] py-4 text-xs text-slate-500">
+      {/* Footer */}
+      <footer className="mt-auto border-t border-[#21262d] bg-[#161b22] py-3.5 text-xs text-slate-500">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
           <p className="font-semibold text-slate-400">
-            DofusCraft Ledger • Indexeur HDV Rapide, OCR & Stock Dofus 3
+            DofusCraft Ledger v3 • Indexeur HDV, Multi-Crafts & Stock Dofus 3
           </p>
           <p className="text-[11px] text-slate-600">
-            100% données réelles Dofus 3 • Scanner OCR & Saisie en vrac
+            Serveur actif : <strong className="text-yellow-400 font-bold">{currentServer}</strong> • 100% PWA installable
           </p>
         </div>
       </footer>

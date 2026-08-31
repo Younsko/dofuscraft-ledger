@@ -23,8 +23,8 @@ interface AnalyticsViewProps {
   totalSpentPurchases: number
   totalNetProfit: number
   totalCraftCount: number
-  onExportJson: () => string
-  onImportJson: (json: string) => { success: boolean; error?: string }
+  onExportJson: () => void | string
+  onImportJson: (json: string) => any
   onResetDemo: () => void
   onClearAll: () => void
 }
@@ -47,31 +47,23 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
   const [copiedExport, setCopiedExport] = useState(false)
 
   const handleCopyExport = () => {
-    const json = onExportJson()
-    navigator.clipboard.writeText(json)
+    onExportJson()
     setCopiedExport(true)
     setTimeout(() => setCopiedExport(false), 2000)
   }
 
   const handleDownloadFile = () => {
-    const json = onExportJson()
-    const blob = new Blob([json], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `dofuscraft-backup-${new Date().toISOString().slice(0, 10)}.json`
-    a.click()
-    URL.revokeObjectURL(url)
+    onExportJson()
   }
 
   const handleImportSubmit = () => {
     if (!importJsonText.trim()) return
     const res = onImportJson(importJsonText)
-    if (res.success) {
+    if (res) {
       setImportStatus('✅ Importation réussie ! Vos données ont été rechargées.')
       setImportJsonText('')
     } else {
-      setImportStatus(`❌ Erreur: ${res.error}`)
+      setImportStatus('❌ Erreur: Fichier JSON invalide.')
     }
   }
 
@@ -184,7 +176,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                         +{craft.quantity}x {craft.item_name}
                       </p>
                       <p className="text-[10px] text-slate-400">
-                        {formatDate(craft.date)} • {craft.consumed_resources.length} ingrédients déduits
+                        {formatDate(craft.date)} • {craft.consumed_resources?.length || 0} ingrédients déduits
                       </p>
                     </div>
                   </div>

@@ -18,13 +18,11 @@ interface SalesTrackerViewProps {
   salesHistory: SaleRecord[]
   stockItems: StockItem[]
   onRecordSale: (
-    item_ankama_id: number,
-    item_name: string,
-    item_icon: string,
+    item: StockItem,
     quantity: number,
-    unit_sale_price: number,
-    tax_percent?: number
-  ) => { success: boolean; error?: string }
+    unitSalePrice: number,
+    taxRate?: number
+  ) => any
 }
 
 export const SalesTrackerView: React.FC<SalesTrackerViewProps> = ({
@@ -55,23 +53,19 @@ export const SalesTrackerView: React.FC<SalesTrackerViewProps> = ({
     e.preventDefault()
     if (!selectedStockItem || saleQty <= 0 || unitSalePrice <= 0) return
 
-    const res = onRecordSale(
-      selectedStockItem.item_ankama_id,
-      selectedStockItem.name,
-      selectedStockItem.icon,
+    onRecordSale(
+      selectedStockItem,
       saleQty,
       unitSalePrice,
-      taxPercent
+      taxPercent / 100
     )
 
-    if (res.success) {
-      setToastMessage('Vente enregistrée avec succès !')
-      setTimeout(() => {
-        setToastMessage(null)
-        setIsSaleModalOpen(false)
-        setSelectedStockItem(null)
-      }, 1000)
-    }
+    setToastMessage('Vente enregistrée avec succès !')
+    setTimeout(() => {
+      setToastMessage(null)
+      setIsSaleModalOpen(false)
+      setSelectedStockItem(null)
+    }, 800)
   }
 
   // Live simulation in modal

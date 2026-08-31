@@ -231,7 +231,7 @@ export const HDVHistoryView: React.FC<HDVHistoryViewProps> = ({
                         type: { id: 0, name: batch.item_type },
                         level: batch.item_level,
                         image_urls: { icon: batch.item_icon },
-                        category: batch.category
+                        category: batch.category as any
                       })
                     }
                     className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-amber-300 rounded-lg transition"

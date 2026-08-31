@@ -241,7 +241,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                             type: { id: 0, name: item.type },
                             level: item.level,
                             image_urls: { icon: item.icon },
-                            category: item.category
+                            category: item.category as any
                           })
                         }
                         className="px-2.5 py-1.5 bg-[#21262d] hover:bg-yellow-500 hover:text-slate-950 text-slate-200 text-xs font-bold rounded-lg transition flex items-center gap-1"
@@ -266,7 +266,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                             type: { id: 0, name: item.type },
                             level: item.level,
                             image_urls: { icon: item.icon },
-                            category: item.category
+                            category: item.category as any
                           })
                         }
                         className="p-1.5 bg-[#21262d] hover:bg-[#30363d] text-slate-300 rounded-lg transition"

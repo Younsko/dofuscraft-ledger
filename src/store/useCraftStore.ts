@@ -1,25 +1,38 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
   PurchaseBatch,
   StockItem,
   CraftRecord,
   SaleRecord,
   DofusItem,
-  ReferencePriceMap
+  CraftPlanItem,
+  AggregatedCraftIngredient
 } from '../types'
-import { buildStockFromBatches, executeCraftDeduction } from '../utils/formatters'
-import { enrichRecipeIngredients } from '../services/dofusApi'
-
-const STORAGE_KEY_BATCHES = 'dofuscraft_batches_v2'
-const STORAGE_KEY_CRAFTS = 'dofuscraft_crafts_v2'
-const STORAGE_KEY_SALES = 'dofuscraft_sales_v2'
-const STORAGE_KEY_REF_PRICES = 'dofuscraft_ref_prices_v2'
+import {
+  buildStockFromBatches,
+  executeCraftDeduction
+} from '../utils/formatters'
+import { DOFUS_SERVERS } from '../data/serversData'
 
 export function useCraftStore() {
-  // Pure clean state - NO mock data by default
+  // Server Selection
+  const [currentServer, setCurrentServer] = useState<string>(() => {
+    const saved = localStorage.getItem('dofuscraft_server_v3')
+    return saved || 'draconiros'
+  })
+
+  const [hasChosenServer, setHasChosenServer] = useState<boolean>(() => {
+    return localStorage.getItem('dofuscraft_server_chosen_v3') === 'true'
+  })
+
+  // Multi-server data storage keys
+  const getStorageKey = (key: string) => `dofuscraft_${key}_${currentServer}_v3`
+
+  // Batches for current server
   const [batches, setBatches] = useState<PurchaseBatch[]>(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY_BATCHES)
+      const saved = localStorage.getItem(`dofuscraft_batches_${currentServer}_v3`) ||
+                    localStorage.getItem('dofuscraft_batches_v2')
       if (saved) return JSON.parse(saved)
     } catch (e) {
       console.error(e)
@@ -27,9 +40,11 @@ export function useCraftStore() {
     return []
   })
 
+  // Craft History for current server
   const [craftHistory, setCraftHistory] = useState<CraftRecord[]>(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY_CRAFTS)
+      const saved = localStorage.getItem(`dofuscraft_crafts_${currentServer}_v3`) ||
+                    localStorage.getItem('dofuscraft_crafts_v2')
       if (saved) return JSON.parse(saved)
     } catch (e) {
       console.error(e)
@@ -37,9 +52,11 @@ export function useCraftStore() {
     return []
   })
 
+  // Sales History for current server
   const [salesHistory, setSalesHistory] = useState<SaleRecord[]>(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY_SALES)
+      const saved = localStorage.getItem(`dofuscraft_sales_${currentServer}_v3`) ||
+                    localStorage.getItem('dofuscraft_sales_v2')
       if (saved) return JSON.parse(saved)
     } catch (e) {
       console.error(e)
@@ -47,9 +64,11 @@ export function useCraftStore() {
     return []
   })
 
-  const [referencePrices, setReferencePrices] = useState<ReferencePriceMap>(() => {
+  // Reference Prices for current server
+  const [referencePrices, setReferencePrices] = useState<Record<number, number>>(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY_REF_PRICES)
+      const saved = localStorage.getItem(`dofuscraft_ref_prices_${currentServer}_v3`) ||
+                    localStorage.getItem('dofuscraft_ref_prices_v2')
       if (saved) return JSON.parse(saved)
     } catch (e) {
       console.error(e)
@@ -57,64 +76,106 @@ export function useCraftStore() {
     return {}
   })
 
-  const [activeTab, setActiveTab] = useState<'fast-hdv' | 'workshop' | 'inventory' | 'hdv' | 'sales' | 'encyclopedia' | 'analytics'>('fast-hdv')
+  // Multi-Craft Plan Queue
+  const [craftPlan, setCraftPlan] = useState<CraftPlanItem[]>(() => {
+    try {
+      const saved = localStorage.getItem(`dofuscraft_craft_plan_${currentServer}_v3`)
+      if (saved) return JSON.parse(saved)
+    } catch (e) {
+      console.error(e)
+    }
+    return []
+  })
+
+  const [activeTab, setActiveTab] = useState<
+    'fast-hdv' | 'workshop' | 'multi-craft' | 'inventory' | 'hdv' | 'sales' | 'encyclopedia' | 'analytics'
+  >('fast-hdv')
   const [selectedItemForCraft, setSelectedItemForCraft] = useState<DofusItem | null>(null)
 
-  // Save to LocalStorage
-  useEffect(() => {
+  // Reload data when server changes
+  const switchServer = (serverId: string) => {
+    setCurrentServer(serverId)
+    localStorage.setItem('dofuscraft_server_v3', serverId)
+    localStorage.setItem('dofuscraft_server_chosen_v3', 'true')
+    setHasChosenServer(true)
+
+    // Load server-specific state
     try {
-      localStorage.setItem(STORAGE_KEY_BATCHES, JSON.stringify(batches))
-    } catch (e) {
-      console.error(e)
+      const bSaved = localStorage.getItem(`dofuscraft_batches_${serverId}_v3`)
+      setBatches(bSaved ? JSON.parse(bSaved) : [])
+
+      const cSaved = localStorage.getItem(`dofuscraft_crafts_${serverId}_v3`)
+      setCraftHistory(cSaved ? JSON.parse(cSaved) : [])
+
+      const sSaved = localStorage.getItem(`dofuscraft_sales_${serverId}_v3`)
+      setSalesHistory(sSaved ? JSON.parse(sSaved) : [])
+
+      const rSaved = localStorage.getItem(`dofuscraft_ref_prices_${serverId}_v3`)
+      setReferencePrices(rSaved ? JSON.parse(rSaved) : {})
+
+      const pSaved = localStorage.getItem(`dofuscraft_craft_plan_${serverId}_v3`)
+      setCraftPlan(pSaved ? JSON.parse(pSaved) : [])
+    } catch (err) {
+      console.error('Error switching server data:', err)
     }
+  }
+
+  // Save to LocalStorage per server
+  useEffect(() => {
+    localStorage.setItem(`dofuscraft_batches_${currentServer}_v3`, JSON.stringify(batches))
+  }, [batches, currentServer])
+
+  useEffect(() => {
+    localStorage.setItem(`dofuscraft_crafts_${currentServer}_v3`, JSON.stringify(craftHistory))
+  }, [craftHistory, currentServer])
+
+  useEffect(() => {
+    localStorage.setItem(`dofuscraft_sales_${currentServer}_v3`, JSON.stringify(salesHistory))
+  }, [salesHistory, currentServer])
+
+  useEffect(() => {
+    localStorage.setItem(`dofuscraft_ref_prices_${currentServer}_v3`, JSON.stringify(referencePrices))
+  }, [referencePrices, currentServer])
+
+  useEffect(() => {
+    localStorage.setItem(`dofuscraft_craft_plan_${currentServer}_v3`, JSON.stringify(craftPlan))
+  }, [craftPlan, currentServer])
+
+  // Aggregated Stock Items with weighted PRU
+  const stockItems: StockItem[] = useMemo(() => {
+    return buildStockFromBatches(batches)
   }, [batches])
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_CRAFTS, JSON.stringify(craftHistory))
-    } catch (e) {
-      console.error(e)
-    }
-  }, [craftHistory])
+  // Key Financial KPIs
+  const totalStockValue = useMemo(() => {
+    return stockItems.reduce((acc, it) => acc + it.total_value, 0)
+  }, [stockItems])
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_SALES, JSON.stringify(salesHistory))
-    } catch (e) {
-      console.error(e)
-    }
+  const totalSpentPurchases = useMemo(() => {
+    return batches.reduce((acc, b) => acc + b.total_price, 0)
+  }, [batches])
+
+  const totalNetProfit = useMemo(() => {
+    return salesHistory.reduce((acc, s) => acc + s.net_profit, 0)
   }, [salesHistory])
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_REF_PRICES, JSON.stringify(referencePrices))
-    } catch (e) {
-      console.error(e)
-    }
-  }, [referencePrices])
+  const totalCraftCount = useMemo(() => {
+    return craftHistory.reduce((acc, c) => acc + c.quantity, 0)
+  }, [craftHistory])
 
-  // Computed Stock
-  const stockItems: StockItem[] = buildStockFromBatches(batches, referencePrices)
-
-  // Total Stock Value & Totals
-  const totalStockValue = stockItems.reduce((acc, it) => acc + it.total_value, 0)
-  const totalSpentPurchases = batches.reduce((acc, b) => acc + b.total_price, 0)
-  const totalNetProfit = salesHistory.reduce((acc, s) => acc + s.net_profit, 0)
-  const totalCraftCount = craftHistory.reduce((acc, c) => acc + c.quantity, 0)
-
-  // Add a purchase batch
+  // Add single purchase batch
   const addPurchaseBatch = useCallback((
     batchData: Omit<PurchaseBatch, 'id' | 'remaining_quantity'>
   ) => {
     const newBatch: PurchaseBatch = {
       ...batchData,
       id: `batch_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      remaining_quantity: batchData.quantity
+      remaining_quantity: batchData.quantity,
+      server_id: currentServer
     }
 
     setBatches(prev => [newBatch, ...prev])
 
-    // Update reference price
     if (batchData.unit_price > 0) {
       setReferencePrices(prev => ({
         ...prev,
@@ -123,7 +184,7 @@ export function useCraftStore() {
     }
 
     return newBatch
-  }, [])
+  }, [currentServer])
 
   // Add multiple batches simultaneously (for fast indexer / OCR bulk import)
   const addMultipleBatches = useCallback((
@@ -132,12 +193,12 @@ export function useCraftStore() {
     const newBatches: PurchaseBatch[] = batchesData.map(b => ({
       ...b,
       id: `batch_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      remaining_quantity: b.quantity
+      remaining_quantity: b.quantity,
+      server_id: currentServer
     }))
 
     setBatches(prev => [...newBatches, ...prev])
 
-    // Update reference prices for all added items
     setReferencePrices(prev => {
       const updated = { ...prev }
       batchesData.forEach(b => {
@@ -149,154 +210,220 @@ export function useCraftStore() {
     })
 
     return newBatches
-  }, [])
+  }, [currentServer])
 
   // Delete batch
   const deleteBatch = useCallback((batchId: string) => {
     setBatches(prev => prev.filter(b => b.id !== batchId))
   }, [])
 
-  // Update Reference Price
-  const updateReferencePrice = useCallback((ankama_id: number, price: number) => {
+  // Update reference price
+  const updateReferencePrice = useCallback((itemAnkamaId: number, price: number) => {
     setReferencePrices(prev => ({
       ...prev,
-      [ankama_id]: Math.max(0, Math.round(price))
+      [itemAnkamaId]: price
     }))
   }, [])
 
-  // Execute a craft
-  const executeCraft = useCallback(async (
-    targetItem: DofusItem,
-    craftQty: number
+  // Execute Craft (FIFO stock deduction & batch creation)
+  const executeCraft = useCallback((
+    item: DofusItem,
+    quantity: number,
+    recipe: any[] = []
   ) => {
-    if (!targetItem.recipe || targetItem.recipe.length === 0 || craftQty <= 0) {
-      return { success: false, error: 'Recette invalide ou quantité nulle.' }
+    const targetItem = {
+      ankama_id: item.ankama_id,
+      name: item.name,
+      icon: item.image_urls?.icon || `https://api.dofusdu.de/dofus3/v1/img/item/${item.ankama_id}-64.png`,
+      level: item.level || 1
     }
 
-    // Enrich recipe with full names and icons if needed
-    const enrichedRecipe = await enrichRecipeIngredients(targetItem.recipe)
-
-    const result = executeCraftDeduction(
-      {
-        ankama_id: targetItem.ankama_id,
-        name: targetItem.name,
-        icon: targetItem.image_urls.icon,
-        level: targetItem.level
-      },
-      enrichedRecipe,
-      craftQty,
+    const { updatedBatches, newCraftRecord, craftedBatch } = executeCraftDeduction(
+      targetItem,
+      recipe,
+      quantity,
       batches,
       referencePrices
     )
 
-    // Update state
-    setBatches(result.updatedBatches)
-    setCraftHistory(prev => [result.newCraftRecord, ...prev])
+    newCraftRecord.server_id = currentServer
+    craftedBatch.server_id = currentServer
 
-    return {
-      success: true,
-      craftRecord: result.newCraftRecord,
-      craftedBatch: result.craftedBatch
-    }
-  }, [batches, referencePrices])
+    setBatches([craftedBatch, ...updatedBatches])
+    setCraftHistory(prev => [newCraftRecord, ...prev])
+    setReferencePrices(prev => ({
+      ...prev,
+      [item.ankama_id]: newCraftRecord.unit_craft_cost
+    }))
 
-  // Record a sale
+    return { success: true, craftRecord: newCraftRecord, craftedBatch }
+  }, [batches, referencePrices, currentServer])
+
+  // Record Sale
   const recordSale = useCallback((
-    item_ankama_id: number,
-    item_name: string,
-    item_icon: string,
+    item: StockItem,
     quantity: number,
-    unit_sale_price: number,
-    tax_percent = 2
+    unitSalePrice: number,
+    taxRate = 0.02
   ) => {
-    if (quantity <= 0 || unit_sale_price <= 0) return { success: false, error: 'Valeurs invalides' }
+    let remainingToSell = quantity
+    const consumedBatches: Array<{ batchId: string; used: number }> = []
+    let totalCostOfSold = 0
 
-    const batchesCopy: PurchaseBatch[] = JSON.parse(JSON.stringify(batches))
-    let needed = quantity
-    let totalCost = 0
-    let consumed = 0
-
-    for (const b of batchesCopy) {
-      if (b.item_ankama_id === item_ankama_id && b.remaining_quantity > 0 && needed > 0) {
-        const take = Math.min(b.remaining_quantity, needed)
-        b.remaining_quantity -= take
-        needed -= take
-        consumed += take
-        totalCost += take * b.unit_price
+    const updatedBatches = batches.map(b => {
+      if (b.item_ankama_id !== item.item_ankama_id || b.remaining_quantity <= 0 || remainingToSell <= 0) {
+        return b
       }
-    }
 
-    const unitCraftCost = consumed > 0 ? Math.round(totalCost / consumed) : 0
-    const totalGross = quantity * unit_sale_price
-    const totalTax = Math.round(totalGross * (tax_percent / 100))
-    const totalNet = totalGross - totalTax
-    const netProfit = totalNet - totalCost
-    const roiPercent = totalCost > 0 ? ((netProfit / totalCost) * 100) : 100
+      const canTake = Math.min(b.remaining_quantity, remainingToSell)
+      totalCostOfSold += canTake * b.unit_price
+      remainingToSell -= canTake
+      consumedBatches.push({ batchId: b.id, used: canTake })
 
-    const newSale: SaleRecord = {
+      return {
+        ...b,
+        remaining_quantity: b.remaining_quantity - canTake
+      }
+    })
+
+    const actualSoldQty = quantity - remainingToSell
+    const unitPru = actualSoldQty > 0 ? totalCostOfSold / actualSoldQty : item.pru
+    const totalSalePrice = actualSoldQty * unitSalePrice
+    const taxAmount = totalSalePrice * taxRate
+    const netRevenue = totalSalePrice - taxAmount
+    const netProfit = netRevenue - totalCostOfSold
+    const roiPercentage = totalCostOfSold > 0 ? (netProfit / totalCostOfSold) * 100 : 0
+
+    const saleRecord: SaleRecord = {
       id: `sale_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      item_ankama_id,
-      item_name,
-      item_icon,
-      quantity,
-      unit_craft_cost: unitCraftCost,
-      unit_sale_price,
-      tax_percent,
-      total_gross: totalGross,
-      total_tax: totalTax,
-      total_net: totalNet,
-      total_cost: totalCost,
+      item_ankama_id: item.item_ankama_id,
+      item_name: item.name,
+      item_icon: item.icon,
+      quantity: actualSoldQty,
+      unit_sale_price: unitSalePrice,
+      total_sale_price: totalSalePrice,
+      unit_craft_cost: unitPru,
+      unit_pru: unitPru,
+      total_cost: totalCostOfSold,
+      tax_rate: taxRate,
+      total_tax: taxAmount,
+      tax_amount: taxAmount,
+      total_net: netRevenue,
+      net_revenue: netRevenue,
       net_profit: netProfit,
-      roi_percent: Math.round(roiPercent * 10) / 10,
-      date: new Date().toISOString()
+      roi_percent: Math.round(roiPercentage * 10) / 10,
+      roi_percentage: roiPercentage,
+      date: new Date().toISOString(),
+      server_id: currentServer
     }
 
-    setBatches(batchesCopy)
-    setSalesHistory(prev => [newSale, ...prev])
-    updateReferencePrice(item_ankama_id, unit_sale_price)
+    setBatches(updatedBatches)
+    setSalesHistory(prev => [saleRecord, ...prev])
+    setReferencePrices(prev => ({
+      ...prev,
+      [item.item_ankama_id]: unitSalePrice
+    }))
 
-    return { success: true, saleRecord: newSale }
-  }, [batches, updateReferencePrice])
+    return saleRecord
+  }, [batches, currentServer])
 
-  // Clear all data
+  // Multi-Craft Plan Queue Actions
+  const addToCraftPlan = useCallback((item: DofusItem, quantity = 1) => {
+    setCraftPlan(prev => {
+      const existingIdx = prev.findIndex(p => p.item.ankama_id === item.ankama_id)
+      if (existingIdx >= 0) {
+        const updated = [...prev]
+        updated[existingIdx] = {
+          ...updated[existingIdx],
+          quantity: updated[existingIdx].quantity + quantity
+        }
+        return updated
+      }
+
+      const newPlan: CraftPlanItem = {
+        id: `plan_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+        item,
+        quantity,
+        dateAdded: new Date().toISOString()
+      }
+      return [...prev, newPlan]
+    })
+  }, [])
+
+  const updateCraftPlanQuantity = useCallback((planId: string, quantity: number) => {
+    setCraftPlan(prev =>
+      prev.map(p => (p.id === planId ? { ...p, quantity: Math.max(1, quantity) } : p))
+    )
+  }, [])
+
+  const removeFromCraftPlan = useCallback((planId: string) => {
+    setCraftPlan(prev => prev.filter(p => p.id !== planId))
+  }, [])
+
+  const clearCraftPlan = useCallback(() => {
+    setCraftPlan([])
+  }, [])
+
+  // Clear data for current server
   const clearAllData = useCallback(() => {
     setBatches([])
     setCraftHistory([])
     setSalesHistory([])
-  }, [])
+    setReferencePrices({})
+    setCraftPlan([])
+    localStorage.removeItem(`dofuscraft_batches_${currentServer}_v3`)
+    localStorage.removeItem(`dofuscraft_crafts_${currentServer}_v3`)
+    localStorage.removeItem(`dofuscraft_sales_${currentServer}_v3`)
+    localStorage.removeItem(`dofuscraft_ref_prices_${currentServer}_v3`)
+    localStorage.removeItem(`dofuscraft_craft_plan_${currentServer}_v3`)
+  }, [currentServer])
 
-  // JSON Export / Import
+  // Export JSON backup
   const exportDataJson = useCallback(() => {
-    const payload = {
-      version: 2,
-      exportDate: new Date().toISOString(),
+    const data = {
+      server: currentServer,
+      export_date: new Date().toISOString(),
       batches,
       craftHistory,
       salesHistory,
-      referencePrices
+      referencePrices,
+      craftPlan
     }
-    return JSON.stringify(payload, null, 2)
-  }, [batches, craftHistory, salesHistory, referencePrices])
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `dofuscraft_${currentServer}_backup_${new Date().toISOString().slice(0, 10)}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }, [currentServer, batches, craftHistory, salesHistory, referencePrices, craftPlan])
 
-  const importDataJson = useCallback((jsonString: string) => {
+  // Import JSON backup
+  const importDataJson = useCallback((jsonContent: string) => {
     try {
-      const data = JSON.parse(jsonString)
-      if (Array.isArray(data.batches)) setBatches(data.batches)
-      if (Array.isArray(data.craftHistory)) setCraftHistory(data.craftHistory)
-      if (Array.isArray(data.salesHistory)) setSalesHistory(data.salesHistory)
-      if (data.referencePrices && typeof data.referencePrices === 'object') setReferencePrices(data.referencePrices)
-      return { success: true }
-    } catch (e: any) {
-      return { success: false, error: e.message || 'JSON invalide' }
+      const data = JSON.parse(jsonContent)
+      if (data.batches) setBatches(data.batches)
+      if (data.craftHistory) setCraftHistory(data.craftHistory)
+      if (data.salesHistory) setSalesHistory(data.salesHistory)
+      if (data.referencePrices) setReferencePrices(data.referencePrices)
+      if (data.craftPlan) setCraftPlan(data.craftPlan)
+      return true
+    } catch (e) {
+      console.error(e)
+      return false
     }
   }, [])
 
   return {
+    currentServer,
+    hasChosenServer,
+    switchServer,
     batches,
     stockItems,
     craftHistory,
     salesHistory,
     referencePrices,
+    craftPlan,
     activeTab,
     selectedItemForCraft,
     totalStockValue,
@@ -311,6 +438,10 @@ export function useCraftStore() {
     updateReferencePrice,
     executeCraft,
     recordSale,
+    addToCraftPlan,
+    updateCraftPlanQuantity,
+    removeFromCraftPlan,
+    clearCraftPlan,
     clearAllData,
     exportDataJson,
     importDataJson

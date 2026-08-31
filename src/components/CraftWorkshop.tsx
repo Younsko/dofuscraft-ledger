@@ -22,7 +22,7 @@ interface CraftWorkshopProps {
   stockItems: StockItem[]
   referencePrices: Record<number, number>
   onSelectItem: (item: DofusItem) => void
-  onExecuteCraft: (item: DofusItem, qty: number) => Promise<{ success: boolean; craftRecord?: any; error?: string }>
+  onExecuteCraft: (item: DofusItem, qty: number, recipe?: any[]) => any
   onOpenHDVWithItem: (item: DofusItem, missingQty?: number) => void
   onUpdateRefPrice: (ankama_id: number, price: number) => void
 }
@@ -131,10 +131,10 @@ export const CraftWorkshop: React.FC<CraftWorkshopProps> = ({
     if (!activeItem || craftQty <= 0) return
     setIsCrafting(true)
 
-    const res = await onExecuteCraft(activeItem, craftQty)
+    const res = await onExecuteCraft(activeItem, craftQty, enrichedRecipe)
     setIsCrafting(false)
 
-    if (res.success && res.craftRecord) {
+    if (res && res.craftRecord) {
       try {
         confetti({
           particleCount: 60,
