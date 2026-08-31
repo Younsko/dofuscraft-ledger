@@ -1,0 +1,70 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-sans: 'Outfit', system-ui, -apple-system, sans-serif;
+    --font-serif: 'Marcellus', Georgia, serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background-color: #0d1117;
+    color: #e6edf3;
+    overflow-x: hidden;
+  }
+
+  h1, h2, h3, .font-dofus {
+    font-family: var(--font-serif);
+    letter-spacing: 0.01em;
+  }
+
+  .font-mono {
+    font-family: var(--font-mono);
+  }
+}
+
+/* Custom sleek scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #090d13;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #21262d;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #30363d;
+}
+
+/* Vinted / Marketplace Item Cards */
+.vinted-card {
+  background: #161b22;
+  border: 1px solid #30363d;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.vinted-card:hover {
+  transform: translateY(-2px);
+  border-color: #eab308;
+  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.5), 0 0 12px -2px rgba(234, 179, 8, 0.15);
+}
+
+.vinted-img-box {
+  background: radial-gradient(circle at center, #21262d 0%, #0d1117 100%);
+}
+
+.gold-text {
+  color: #eab308;
+}
+
+.badge-gold {
+  background: #eab308;
+  color: #0d1117;
+}
