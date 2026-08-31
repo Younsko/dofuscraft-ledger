@@ -52,10 +52,12 @@ export const App: React.FC = () => {
   const [isHDVModalOpen, setIsHDVModalOpen] = useState(false)
   const [isServerModalOpen, setIsServerModalOpen] = useState(!hasChosenServer)
   const [preselectedHDVItem, setPreselectedHDVItem] = useState<DofusItem | null>(null)
+  const [preselectedHDVQty, setPreselectedHDVQty] = useState<number>(100)
 
-  const handleOpenHDVModal = (item?: DofusItem) => {
+  const handleOpenHDVModal = (item?: DofusItem, defaultQty?: number) => {
     if (item) {
       setPreselectedHDVItem(item)
+      setPreselectedHDVQty(defaultQty && defaultQty > 0 ? defaultQty : 100)
       setIsHDVModalOpen(true)
     } else {
       setActiveTab('fast-hdv' as any)
@@ -89,16 +91,16 @@ export const App: React.FC = () => {
         onGlobalSearchChange={setGlobalSearch}
       />
 
-      {/* Main Content Body */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-4">
-        {(activeTab as string) === 'fast-hdv' && (
+      {/* Main Content View Switcher */}
+      <main className="max-w-7xl mx-auto px-4 py-6 flex-1 w-full">
+        {activeTab === 'fast-hdv' && (
           <FastHDVIndexer
             onAddMultipleBatches={addMultipleBatches}
             onAddSingleBatch={addPurchaseBatch}
           />
         )}
 
-        {(activeTab as string) === 'multi-craft' && (
+        {activeTab === 'multi-craft' && (
           <MultiCraftPlannerView
             craftPlan={craftPlan}
             stockItems={stockItems}
@@ -108,7 +110,7 @@ export const App: React.FC = () => {
             onClearPlan={clearCraftPlan}
             onAddToPlan={addToCraftPlan}
             onExecuteAllCrafts={executeCraft}
-            onOpenHDVWithItem={(item) => handleOpenHDVModal(item)}
+            onOpenHDVWithItem={(item, qty) => handleOpenHDVModal(item, qty)}
           />
         )}
 
@@ -120,7 +122,7 @@ export const App: React.FC = () => {
             latestKnownPrices={latestKnownPrices}
             onSelectItem={setSelectedItemForCraft}
             onExecuteCraft={executeCraft}
-            onOpenHDVWithItem={(item) => handleOpenHDVModal(item)}
+            onOpenHDVWithItem={(item, qty) => handleOpenHDVModal(item, qty)}
             onUpdateRefPrice={updateReferencePrice}
           />
         )}
@@ -199,9 +201,11 @@ export const App: React.FC = () => {
         onClose={() => {
           setIsHDVModalOpen(false)
           setPreselectedHDVItem(null)
+          setPreselectedHDVQty(100)
         }}
         onAddBatch={addPurchaseBatch}
         preselectedItem={preselectedHDVItem}
+        initialQuantity={preselectedHDVQty}
       />
 
       {/* Footer */}

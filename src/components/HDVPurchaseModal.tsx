@@ -10,13 +10,15 @@ interface HDVPurchaseModalProps {
   onClose: () => void
   onAddBatch: (batch: Omit<PurchaseBatch, 'id' | 'remaining_quantity'>) => void
   preselectedItem?: DofusItem | null
+  initialQuantity?: number
 }
 
 export const HDVPurchaseModal: React.FC<HDVPurchaseModalProps> = ({
   isOpen,
   onClose,
   onAddBatch,
-  preselectedItem
+  preselectedItem,
+  initialQuantity = 100
 }) => {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<DofusItem[]>([])
@@ -24,7 +26,7 @@ export const HDVPurchaseModal: React.FC<HDVPurchaseModalProps> = ({
   const [selectedItem, setSelectedItem] = useState<DofusItem | null>(preselectedItem || null)
   const [categoryFilter, setCategoryFilter] = useState<string>('all')
 
-  const [quantity, setQuantity] = useState<number>(100)
+  const [quantity, setQuantity] = useState<number>(initialQuantity || 100)
   const [pricingMode, setPricingMode] = useState<'total' | 'unit'>('total')
   const [totalPrice, setTotalPrice] = useState<number>(0)
   const [unitPrice, setUnitPrice] = useState<number>(0)
@@ -34,16 +36,18 @@ export const HDVPurchaseModal: React.FC<HDVPurchaseModalProps> = ({
   const searchInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    if (preselectedItem) {
-      setSelectedItem(preselectedItem)
-    }
-  }, [preselectedItem])
-
-  useEffect(() => {
     if (isOpen) {
+      if (preselectedItem) {
+        setSelectedItem(preselectedItem)
+      }
+      if (initialQuantity && initialQuantity > 0) {
+        setQuantity(initialQuantity)
+      }
+      setTotalPrice(0)
+      setUnitPrice(0)
       setTimeout(() => searchInputRef.current?.focus(), 100)
     }
-  }, [isOpen])
+  }, [preselectedItem, initialQuantity, isOpen])
 
   // Search effect
   useEffect(() => {
@@ -284,6 +288,19 @@ export const HDVPurchaseModal: React.FC<HDVPurchaseModalProps> = ({
                     className="w-32 px-3 py-2 bg-slate-950 border border-slate-700 focus:border-amber-500 rounded-lg text-slate-100 font-mono text-sm"
                   />
                   <div className="flex flex-wrap gap-1">
+                    {initialQuantity && initialQuantity > 0 && ![1, 10, 50, 100, 500, 1000].includes(initialQuantity) && (
+                      <button
+                        type="button"
+                        onClick={() => handleQuantityChange(initialQuantity)}
+                        className={`px-2.5 py-1 text-xs font-mono font-bold rounded border transition ${
+                          quantity === initialQuantity
+                            ? 'bg-yellow-400 text-slate-950 border-yellow-400 shadow-xs'
+                            : 'bg-yellow-500/20 border-yellow-500/50 text-yellow-300 hover:bg-yellow-500/30'
+                        }`}
+                      >
+                        x{initialQuantity} (Requis)
+                      </button>
+                    )}
                     {[1, 10, 50, 100, 500, 1000].map((q) => (
                       <button
                         key={q}

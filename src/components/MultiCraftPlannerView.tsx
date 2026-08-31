@@ -31,7 +31,7 @@ interface MultiCraftPlannerViewProps {
   onClearPlan: () => void
   onAddToPlan: (item: DofusItem, qty?: number) => void
   onExecuteAllCrafts: (item: DofusItem, qty: number, recipe: any[]) => void
-  onOpenHDVWithItem: (item: DofusItem) => void
+  onOpenHDVWithItem: (item: DofusItem, defaultQty?: number) => void
 }
 
 export const MultiCraftPlannerView: React.FC<MultiCraftPlannerViewProps> = ({
@@ -502,7 +502,7 @@ export const MultiCraftPlannerView: React.FC<MultiCraftPlannerViewProps> = ({
                               level: 1,
                               image_urls: { icon: ing.item_icon },
                               category: 'resources'
-                            })
+                            }, ing.missing_deficit || ing.total_required)
                           }
                           className="px-2.5 py-1 bg-yellow-500 hover:bg-yellow-400 text-slate-950 font-bold rounded-lg text-xs transition"
                           title="Acheter en HDV"
