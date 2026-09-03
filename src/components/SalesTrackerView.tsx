@@ -44,7 +44,7 @@ export const SalesTrackerView: React.FC<SalesTrackerViewProps> = ({
   const handleOpenSaleWithItem = (item: StockItem) => {
     setSelectedStockItem(item)
     setSaleQty(Math.min(item.total_quantity, 1))
-    setUnitSalePrice(item.reference_price || Math.round(item.pru * 1.3))
+    setUnitSalePrice(item.reference_price || item.pru || 0)
     setIsSaleModalOpen(true)
   }
 
@@ -94,8 +94,11 @@ export const SalesTrackerView: React.FC<SalesTrackerViewProps> = ({
 
         <button
           onClick={() => {
-            if (stockItems.length > 0) setSelectedStockItem(stockItems[0])
-            setIsSaleModalOpen(true)
+            if (stockItems.length > 0) {
+              handleOpenSaleWithItem(stockItems[0])
+            } else {
+              setIsSaleModalOpen(true)
+            }
           }}
           className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-xs flex items-center gap-1.5 transition"
         >

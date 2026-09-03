@@ -110,7 +110,8 @@ export const CraftWorkshop: React.FC<CraftWorkshopProps> = ({
 
       if (active) {
         setIsLoadingRecipe(false)
-        setCustomSalePrice(referencePrices[activeItem.ankama_id] || (activeItem.level * 2500) || 50000)
+        const existingPrice = referencePrices[activeItem.ankama_id] || latestKnownPrices[activeItem.ankama_id]?.price || 0
+        setCustomSalePrice(existingPrice)
         setCraftReceipt(null)
       }
     }
