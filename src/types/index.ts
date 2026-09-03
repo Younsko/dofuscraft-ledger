@@ -183,3 +183,15 @@ export interface AggregatedCraftIngredient {
   estimated_cost: number
   contributing_crafts: Array<{ craft_name: string; qty: number }>
 }
+
+export type PriceDataSource = 'global' | 'local'
+
+export interface MarketPriceEntry {
+  item_ankama_id: number
+  item_name?: string
+  price: number
+  updated_at: string
+  server_id: string
+  source: 'community' | 'local' | 'ocr' | 'seed'
+  author?: string
+}

@@ -7,7 +7,9 @@ import {
   CrushRecord,
   DofusItem,
   CraftPlanItem,
-  AggregatedCraftIngredient
+  AggregatedCraftIngredient,
+  MarketPriceEntry,
+  PriceDataSource
 } from '../types'
 import {
   buildStockFromBatches,
@@ -15,13 +17,41 @@ import {
   getLatestKnownPrices
 } from '../utils/formatters'
 import { DOFUS_SERVERS } from '../data/serversData'
+import { marketSyncService } from '../services/marketSyncService'
 
 export function useCraftStore() {
+  // Price Data Source ('global' = Dofocus community, 'local' = personal entries)
+  const [priceDataSource, setPriceDataSourceState] = useState<PriceDataSource>(() => {
+    return (localStorage.getItem('dofuscraft_price_source_v3') as PriceDataSource) || 'global'
+  })
+
+  const setPriceDataSource = useCallback((source: PriceDataSource) => {
+    setPriceDataSourceState(source)
+    localStorage.setItem('dofuscraft_price_source_v3', source)
+  }, [])
+
   // Server Selection
   const [currentServer, setCurrentServer] = useState<string>(() => {
     const saved = localStorage.getItem('dofuscraft_server_v3')
     return saved || 'draconiros'
   })
+
+  // Live Community Market Prices for current server (like Dofocus)
+  const [marketPrices, setMarketPrices] = useState<Record<number, MarketPriceEntry>>(() => {
+    return marketSyncService.loadPricesForServer(currentServer)
+  })
+
+  // Subscribe to live market sync across tabs and updates
+  useEffect(() => {
+    return marketSyncService.subscribe((entry) => {
+      if (entry.server_id.toLowerCase() === currentServer.toLowerCase()) {
+        setMarketPrices(prev => ({
+          ...prev,
+          [entry.item_ankama_id]: entry
+        }))
+      }
+    })
+  }, [currentServer])
 
   const [hasChosenServer, setHasChosenServer] = useState<boolean>(() => {
     return localStorage.getItem('dofuscraft_server_chosen_v3') === 'true'
@@ -139,6 +169,9 @@ export function useCraftStore() {
 
       const pSaved = localStorage.getItem(`dofuscraft_craft_plan_${serverId}_v3`)
       setCraftPlan(pSaved ? JSON.parse(pSaved) : [])
+
+      // Load market prices for new server
+      setMarketPrices(marketSyncService.loadPricesForServer(serverId))
     } catch (err) {
       console.error('Error switching server data:', err)
     }
@@ -178,6 +211,51 @@ export function useCraftStore() {
   const latestKnownPrices = useMemo(() => {
     return getLatestKnownPrices(batches, referencePrices)
   }, [batches, referencePrices])
+
+  // Effective Prices taking into account priceDataSource ('global' Dofocus vs 'local')
+  const effectivePrices = useMemo<Record<number, { price: number; date?: string; source?: string }>>(() => {
+    const map: Record<number, { price: number; date?: string; source?: string }> = {}
+
+    if (priceDataSource === 'global') {
+      // 1. Primary: Community Market Prices
+      for (const [idStr, entry] of Object.entries(marketPrices)) {
+        const id = parseInt(idStr)
+        if (entry && entry.price > 0) {
+          map[id] = { price: entry.price, date: entry.updated_at, source: entry.source || 'community' }
+        }
+      }
+      // 2. Supplement with local latest purchase batches if missing
+      for (const [idStr, entry] of Object.entries(latestKnownPrices)) {
+        const id = parseInt(idStr)
+        if (!map[id] && entry && entry.price > 0) {
+          map[id] = { price: entry.price, date: entry.date, source: 'local' }
+        }
+      }
+      // 3. Supplement with manual reference prices if missing
+      for (const [idStr, price] of Object.entries(referencePrices)) {
+        const id = parseInt(idStr)
+        if (!map[id] && price > 0) {
+          map[id] = { price, source: 'local' }
+        }
+      }
+    } else {
+      // Local mode only: strictly user purchase batches and reference prices
+      for (const [idStr, entry] of Object.entries(latestKnownPrices)) {
+        const id = parseInt(idStr)
+        if (entry && entry.price > 0) {
+          map[id] = { price: entry.price, date: entry.date, source: 'local' }
+        }
+      }
+      for (const [idStr, price] of Object.entries(referencePrices)) {
+        const id = parseInt(idStr)
+        if (!map[id] && price > 0) {
+          map[id] = { price, source: 'local' }
+        }
+      }
+    }
+
+    return map
+  }, [priceDataSource, marketPrices, latestKnownPrices, referencePrices])
 
   // Latest crushing results indexed by item Ankama ID
   const latestCrushesByItem = useMemo(() => {
@@ -229,6 +307,14 @@ export function useCraftStore() {
         ...prev,
         [batchData.item_ankama_id]: batchData.unit_price
       }))
+      marketSyncService.publishPrice(
+        currentServer,
+        batchData.item_ankama_id,
+        batchData.unit_price,
+        batchData.item_name,
+        'ocr',
+        'Moi'
+      )
     }
 
     return newBatch
@@ -247,15 +333,25 @@ export function useCraftStore() {
 
     setBatches(prev => [...newBatches, ...prev])
 
+    const pricesToPublish: Array<{ itemAnkamaId: number; price: number; itemName?: string }> = []
     setReferencePrices(prev => {
       const updated = { ...prev }
       batchesData.forEach(b => {
         if (b.unit_price > 0) {
           updated[b.item_ankama_id] = b.unit_price
+          pricesToPublish.push({
+            itemAnkamaId: b.item_ankama_id,
+            price: b.unit_price,
+            itemName: b.item_name
+          })
         }
       })
       return updated
     })
+
+    if (pricesToPublish.length > 0) {
+      marketSyncService.publishMultiplePrices(currentServer, pricesToPublish, 'ocr', 'Moi')
+    }
 
     return newBatches
   }, [currentServer])
@@ -274,16 +370,17 @@ export function useCraftStore() {
     }
   }, [])
 
-  // Update reference price
-  const updateReferencePrice = useCallback((itemAnkamaId: number, price: number) => {
+  // Update reference price and publish to community feed
+  const updateReferencePrice = useCallback((itemAnkamaId: number, price: number, itemName?: string) => {
     setReferencePrices(prev => ({
       ...prev,
       [itemAnkamaId]: price
     }))
-  }, [])
+    marketSyncService.publishPrice(currentServer, itemAnkamaId, price, itemName, 'local', 'Moi')
+  }, [currentServer])
 
   // Update multiple reference prices (for price-only indexation without adding batches)
-  const updateMultipleRefPrices = useCallback((prices: Array<{ itemAnkamaId: number; price: number }>) => {
+  const updateMultipleRefPrices = useCallback((prices: Array<{ itemAnkamaId: number; price: number; itemName?: string }>) => {
     setReferencePrices(prev => {
       const updated = { ...prev }
       prices.forEach(p => {
@@ -293,7 +390,12 @@ export function useCraftStore() {
       })
       return updated
     })
-  }, [])
+    marketSyncService.publishMultiplePrices(currentServer, prices, 'local', 'Moi')
+  }, [currentServer])
+
+  const publishMarketPrice = useCallback((itemAnkamaId: number, price: number, itemName?: string) => {
+    updateReferencePrice(itemAnkamaId, price, itemName)
+  }, [updateReferencePrice])
 
   // Execute Craft (FIFO stock deduction & batch creation)
   const executeCraft = useCallback((
@@ -628,6 +730,11 @@ export function useCraftStore() {
     clearCraftPlan,
     clearAllData,
     exportDataJson,
-    importDataJson
+    importDataJson,
+    priceDataSource,
+    setPriceDataSource,
+    marketPrices,
+    effectivePrices,
+    publishMarketPrice
   }
 }

@@ -375,8 +375,8 @@ export const CrushItemModal: React.FC<CrushItemModalProps> = ({
           {/* Submit Button */}
           <button
             type="submit"
-            disabled={isSubmitting || runeRows.length === 0}
-            className="w-full py-3 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-400 hover:to-indigo-500 disabled:opacity-50 text-white font-bold rounded-xl shadow-lg flex items-center justify-center gap-2 transition"
+            disabled={runeRows.length === 0}
+            className="w-full py-2.5 bg-yellow-500 hover:bg-yellow-400 disabled:opacity-50 text-slate-950 font-bold rounded-lg flex items-center justify-center gap-2 transition"
           >
             <Hammer className="w-4 h-4" />
             <span>Valider le Brisage de {crushQty}x {item.name}</span>

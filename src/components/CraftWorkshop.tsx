@@ -236,7 +236,7 @@ export const CraftWorkshop: React.FC<CraftWorkshopProps> = ({
 
     if (price > 0) {
       onUpdateRefPrice(req.item_ankama_id, price)
-      setQuickToast(`🏷️ Prix de ${req.name} indexé (${formatKamas(price)}) !`)
+      setQuickToast(`Prix de ${req.name} indexé (${formatKamas(price)})`)
       setTimeout(() => setQuickToast(null), 2500)
     }
   }
@@ -277,10 +277,10 @@ export const CraftWorkshop: React.FC<CraftWorkshopProps> = ({
         batchesToAdd.forEach(b => onAddSingleBatch(b))
       }
 
-      setQuickToast(`🎉 ${batchesToAdd.length} ressources achetées et ajoutées au stock !`)
+      setQuickToast(`${batchesToAdd.length} ressources achetées et ajoutées au stock`)
       setTimeout(() => setQuickToast(null), 3000)
     } else {
-      setQuickToast(`⚠️ Veuillez renseigner le prix des ressources ci-dessous.`)
+      setQuickToast(`Veuillez renseigner le prix des ressources ci-dessous.`)
       setTimeout(() => setQuickToast(null), 3000)
     }
   }
@@ -303,7 +303,7 @@ export const CraftWorkshop: React.FC<CraftWorkshopProps> = ({
       } else {
         pricesToUpdate.forEach(p => onUpdateRefPrice(p.itemAnkamaId, p.price))
       }
-      setQuickToast(`🏷️ ${pricesToUpdate.length} prix de référence enregistrés sans stock !`)
+      setQuickToast(`${pricesToUpdate.length} prix de référence enregistrés sans stock`)
       setTimeout(() => setQuickToast(null), 3000)
     }
   }
@@ -563,44 +563,44 @@ export const CraftWorkshop: React.FC<CraftWorkshopProps> = ({
                 <button
                   type="button"
                   onClick={handleBuyAllMissingInline}
-                  className="px-3 py-1.5 bg-yellow-500 hover:bg-yellow-400 text-slate-950 text-xs font-black rounded-xl transition flex items-center gap-1.5 shadow-sm"
+                  className="px-3 py-1.5 bg-yellow-500 hover:bg-yellow-400 text-slate-950 text-xs font-bold rounded-lg transition flex items-center gap-1.5"
                   title="Acheter et ajouter au stock toutes les ressources manquantes en 1 clic"
                 >
                   <PackagePlus className="w-3.5 h-3.5" />
-                  <span>⚡ Tout Stocker en 1 Clic</span>
+                  <span>Stocker les manquants</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={handleIndexAllPricesOnly}
-                  className="px-2.5 py-1.5 bg-[#21262d] hover:bg-[#30363d] text-slate-200 text-xs font-bold rounded-xl transition flex items-center gap-1"
+                  className="px-2.5 py-1.5 bg-[#1b1f27] hover:bg-[#252b37] text-slate-200 text-xs font-medium rounded-lg transition flex items-center gap-1 border border-[#2b313d]"
                   title="Enregistrer les prix saisis sans ajouter au stock"
                 >
-                  <Tag className="w-3.5 h-3.5 text-yellow-400" />
-                  <span>🏷️ Prix Seuls</span>
+                  <Tag className="w-3.5 h-3.5 text-yellow-500" />
+                  <span>Indexer les prix</span>
                 </button>
               </div>
             )}
 
             {isFullySatisfied && (
-              <span className="text-xs font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-800 px-2.5 py-1 rounded-lg flex items-center gap-1">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                Stock complet pour x{craftQty} !
+              <span className="text-xs font-semibold text-slate-300 bg-[#1b1f27] border border-[#2b313d] px-2.5 py-1 rounded-lg flex items-center gap-1">
+                <CheckCircle2 className="w-3.5 h-3.5 text-yellow-500" />
+                Stock complet pour x{craftQty}
               </span>
             )}
           </div>
 
           {isLoadingRecipe ? (
-            <div className="bg-[#161b22] border border-[#30363d] rounded-2xl p-12 text-center text-slate-400 text-xs">
+            <div className="bg-[#14171d] border border-[#232730] rounded-xl p-12 text-center text-slate-400 text-xs">
               Chargement de la recette...
             </div>
           ) : requirements.length === 0 ? (
-            <div className="bg-[#161b22] border border-[#30363d] rounded-2xl p-12 text-center text-slate-400 text-xs space-y-1">
+            <div className="bg-[#14171d] border border-[#232730] rounded-xl p-12 text-center text-slate-400 text-xs space-y-1">
               <p className="font-bold text-slate-300">Aucune recette associée à cet item.</p>
               <p className="text-slate-500">Choisissez un équipement ou consommable craftable.</p>
             </div>
           ) : (
-            <div className="bg-[#161b22] border border-[#30363d] rounded-2xl divide-y divide-[#21262d] overflow-hidden">
+            <div className="bg-[#14171d] border border-[#232730] rounded-xl divide-y divide-[#1f242e] overflow-hidden">
               {requirements.map((req) => {
                 const latest = latestKnownPrices[req.item_ankama_id]
                 const row = inlineInputs[req.item_ankama_id] || { price: '', qty: req.missing_qty.toString() }
@@ -608,15 +608,11 @@ export const CraftWorkshop: React.FC<CraftWorkshopProps> = ({
                 return (
                   <div
                     key={req.item_ankama_id}
-                    className={`p-3 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 ${
-                      !req.is_satisfied
-                        ? 'bg-rose-950/20 border-l-4 border-rose-500'
-                        : 'hover:bg-[#21262d]/40 border-l-4 border-emerald-500'
-                    }`}
+                    className="p-3 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 hover:bg-[#181c24] transition-colors"
                   >
                     {/* Left: Icon & Info */}
                     <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                      <div className="w-9 h-9 bg-[#0d1117] rounded-xl border border-[#30363d] p-1 flex items-center justify-center shrink-0">
+                      <div className="w-9 h-9 bg-[#0c0e12] rounded-lg border border-[#232730] p-1 flex items-center justify-center shrink-0">
                         <img
                           src={req.icon}
                           alt={req.name}

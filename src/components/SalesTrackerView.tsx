@@ -97,7 +97,7 @@ export const SalesTrackerView: React.FC<SalesTrackerViewProps> = ({
             if (stockItems.length > 0) setSelectedStockItem(stockItems[0])
             setIsSaleModalOpen(true)
           }}
-          className="px-4 py-2.5 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-slate-950 font-bold rounded-xl shadow-lg shadow-emerald-500/20 text-xs flex items-center gap-2 transition"
+          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-xs flex items-center gap-1.5 transition"
         >
           <Plus className="w-4 h-4" />
           <span>Enregistrer une Vente</span>

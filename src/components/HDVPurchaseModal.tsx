@@ -402,7 +402,7 @@ export const HDVPurchaseModal: React.FC<HDVPurchaseModalProps> = ({
               <button
                 type="submit"
                 disabled={totalPrice <= 0 || quantity <= 0}
-                className="w-full py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 disabled:opacity-50 disabled:cursor-not-allowed text-slate-950 font-bold rounded-xl shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 transition"
+                className="w-full py-2.5 bg-yellow-500 hover:bg-yellow-400 disabled:opacity-50 disabled:cursor-not-allowed text-slate-950 font-bold rounded-lg flex items-center justify-center gap-2 transition"
               >
                 {successToast ? (
                   <>

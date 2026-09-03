@@ -1,5 +1,7 @@
 import { DofusItem, DofusRecipeIngredient } from '../types'
 import { DOFUS_RUNES, runeToDofusItem } from '../data/runesData'
+import { POPULAR_ITEMS } from '../data/popularItems'
+import { getAllItemsFromDb, saveItemsToDb } from './catalogDb'
 
 const BASE_URL = 'https://api.dofusdu.de/dofus3/v1/fr'
 
@@ -11,81 +13,147 @@ const searchCache = new Map<string, DofusItem[]>()
 const allRunesItems = DOFUS_RUNES.map(runeToDofusItem)
 allRunesItems.forEach(item => itemCache.set(item.ankama_id, item))
 
+// Seed popular items
+POPULAR_ITEMS.forEach(item => itemCache.set(item.ankama_id, item))
+
 // Multi-category preloaded catalog cache
 const preloadedCategoryCache: Record<string, DofusItem[]> = {
   runes: allRunesItems,
   resources: [],
-  equipment: [],
+  equipment: [...POPULAR_ITEMS],
   consumables: [],
-  all: []
+  all: [...allRunesItems, ...POPULAR_ITEMS]
 }
 
 let isPreloading = false
+let hasInitializedFromDb = false
+const catalogUpdateListeners: Set<() => void> = new Set()
+
+export function onCatalogUpdate(cb: () => void): () => void {
+  catalogUpdateListeners.add(cb)
+  return () => catalogUpdateListeners.delete(cb)
+}
+
+function notifyCatalogUpdated() {
+  catalogUpdateListeners.forEach(cb => {
+    try {
+      cb()
+    } catch (e) {
+      console.error(e)
+    }
+  })
+}
 
 /**
- * Preload high-density catalogs across all 4 categories on startup
+ * Initialize catalog from IndexedDB first, then fetch fresh/missing from API
  */
 export async function preloadAllCatalogs(): Promise<void> {
-  if (isPreloading || preloadedCategoryCache.resources.length > 0) return
+  if (isPreloading) return
   isPreloading = true
 
+  // 1. Load from IndexedDB first for instant startup
+  if (!hasInitializedFromDb) {
+    try {
+      const stored = await getAllItemsFromDb()
+      if (stored && stored.length > 0) {
+        hasInitializedFromDb = true
+        stored.forEach(it => {
+          itemCache.set(it.ankama_id, it)
+        })
+
+        preloadedCategoryCache.resources = stored.filter(it => it.category === 'resources')
+        preloadedCategoryCache.equipment = stored.filter(it => it.category === 'equipment')
+        preloadedCategoryCache.consumables = stored.filter(it => it.category === 'consumables')
+        preloadedCategoryCache.all = [
+          ...preloadedCategoryCache.resources,
+          ...preloadedCategoryCache.runes,
+          ...preloadedCategoryCache.equipment,
+          ...preloadedCategoryCache.consumables
+        ]
+
+        notifyCatalogUpdated()
+      }
+    } catch (e) {
+      console.warn('Error loading from IndexedDB:', e)
+    }
+  }
+
+  // 2. Fetch large batches from API
   try {
-    const [resRes, equipRes, consRes] = await Promise.allSettled([
-      fetch(`${BASE_URL}/items/resources?page[size]=100`),
-      fetch(`${BASE_URL}/items/equipment?page[size]=100`),
-      fetch(`${BASE_URL}/items/consumables?page[size]=100`)
-    ])
-
-    if (resRes.status === 'fulfilled' && resRes.value.ok) {
-      const data = await resRes.value.json()
-      const list = data.items || data || []
-      preloadedCategoryCache.resources = list.map((it: any) => ({
-        ankama_id: it.ankama_id,
-        name: it.name,
-        type: it.type || { id: 0, name: 'Ressource' },
-        level: it.level || 1,
-        image_urls: it.image_urls || { icon: `https://api.dofusdu.de/dofus3/v1/img/item/${it.ankama_id}-64.png` },
-        category: 'resources' as const
-      }))
-      preloadedCategoryCache.resources.forEach(it => itemCache.set(it.ankama_id, it))
-    }
-
-    if (equipRes.status === 'fulfilled' && equipRes.value.ok) {
-      const data = await equipRes.value.json()
-      const list = data.items || data || []
-      preloadedCategoryCache.equipment = list.map((it: any) => ({
-        ankama_id: it.ankama_id,
-        name: it.name,
-        type: it.type || { id: 0, name: 'Équipement' },
-        level: it.level || 1,
-        image_urls: it.image_urls || { icon: `https://api.dofusdu.de/dofus3/v1/img/item/${it.ankama_id}-64.png` },
-        recipe: it.recipe || undefined,
-        category: 'equipment' as const
-      }))
-      preloadedCategoryCache.equipment.forEach(it => itemCache.set(it.ankama_id, it))
-    }
-
-    if (consRes.status === 'fulfilled' && consRes.value.ok) {
-      const data = await consRes.value.json()
-      const list = data.items || data || []
-      preloadedCategoryCache.consumables = list.map((it: any) => ({
-        ankama_id: it.ankama_id,
-        name: it.name,
-        type: it.type || { id: 0, name: 'Consommable' },
-        level: it.level || 1,
-        image_urls: it.image_urls || { icon: `https://api.dofusdu.de/dofus3/v1/img/item/${it.ankama_id}-64.png` },
-        recipe: it.recipe || undefined,
-        category: 'consumables' as const
-      }))
-      preloadedCategoryCache.consumables.forEach(it => itemCache.set(it.ankama_id, it))
-    }
-
-    preloadedCategoryCache.all = [
-      ...preloadedCategoryCache.resources,
-      ...preloadedCategoryCache.runes,
-      ...preloadedCategoryCache.equipment,
-      ...preloadedCategoryCache.consumables
+    const fetchPromises = [
+      // Equipment page 1 (500 items)
+      fetch(`${BASE_URL}/items/equipment?page[size]=500&page[number]=1`).then(r => r.ok ? r.json() : null),
+      // Resources page 1 (500 items)
+      fetch(`${BASE_URL}/items/resources?page[size]=500&page[number]=1`).then(r => r.ok ? r.json() : null),
+      // Consumables page 1 (500 items)
+      fetch(`${BASE_URL}/items/consumables?page[size]=500&page[number]=1`).then(r => r.ok ? r.json() : null),
+      // Equipment page 2 (500 items)
+      fetch(`${BASE_URL}/items/equipment?page[size]=500&page[number]=2`).then(r => r.ok ? r.json() : null),
+      // Resources page 2 (500 items)
+      fetch(`${BASE_URL}/items/resources?page[size]=500&page[number]=2`).then(r => r.ok ? r.json() : null)
     ]
+
+    const [equip1, res1, cons1, equip2, res2] = await Promise.allSettled(fetchPromises)
+
+    const newlyFetched: DofusItem[] = []
+
+    // Helper to extract items
+    const parseList = (data: any, cat: 'equipment' | 'resources' | 'consumables') => {
+      const list = data?.items || (Array.isArray(data) ? data : [])
+      return list.map((it: any) => ({
+        ankama_id: it.ankama_id,
+        name: it.name,
+        type: it.type || { id: 0, name: cat === 'equipment' ? 'Équipement' : cat === 'resources' ? 'Ressource' : 'Consommable' },
+        level: it.level || 1,
+        image_urls: it.image_urls || { icon: `https://api.dofusdu.de/dofus3/v1/img/item/${it.ankama_id}-64.png` },
+        recipe: it.recipe || undefined,
+        description: it.description || '',
+        category: cat
+      })) as DofusItem[]
+    }
+
+    if (equip1.status === 'fulfilled' && equip1.value) {
+      newlyFetched.push(...parseList(equip1.value, 'equipment'))
+    }
+    if (equip2.status === 'fulfilled' && equip2.value) {
+      newlyFetched.push(...parseList(equip2.value, 'equipment'))
+    }
+    if (res1.status === 'fulfilled' && res1.value) {
+      newlyFetched.push(...parseList(res1.value, 'resources'))
+    }
+    if (res2.status === 'fulfilled' && res2.value) {
+      newlyFetched.push(...parseList(res2.value, 'resources'))
+    }
+    if (cons1.status === 'fulfilled' && cons1.value) {
+      newlyFetched.push(...parseList(cons1.value, 'consumables'))
+    }
+
+    if (newlyFetched.length > 0) {
+      newlyFetched.forEach(it => {
+        itemCache.set(it.ankama_id, it)
+      })
+
+      // Re-group
+      const allItemsMap = new Map<number, DofusItem>()
+      // Put existing cached items
+      preloadedCategoryCache.all.forEach(it => allItemsMap.set(it.ankama_id, it))
+      // Add newly fetched
+      newlyFetched.forEach(it => allItemsMap.set(it.ankama_id, it))
+      // Add runes
+      allRunesItems.forEach(it => allItemsMap.set(it.ankama_id, it))
+
+      const allMerged = Array.from(allItemsMap.values())
+      preloadedCategoryCache.equipment = allMerged.filter(it => it.category === 'equipment')
+      preloadedCategoryCache.resources = allMerged.filter(it => it.category === 'resources')
+      preloadedCategoryCache.consumables = allMerged.filter(it => it.category === 'consumables')
+      preloadedCategoryCache.runes = allMerged.filter(it => it.category === 'runes')
+      preloadedCategoryCache.all = allMerged
+
+      // Save to IndexedDB in background
+      saveItemsToDb(allMerged).catch(err => console.warn('Failed to save catalog to IndexedDB:', err))
+
+      notifyCatalogUpdated()
+    }
   } catch (err) {
     console.error('Preload catalogs error:', err)
   } finally {
@@ -97,7 +165,7 @@ export async function preloadAllCatalogs(): Promise<void> {
 preloadAllCatalogs()
 
 export async function getPreloadedCatalog(category = 'all'): Promise<DofusItem[]> {
-  if (preloadedCategoryCache.resources.length === 0) {
+  if (preloadedCategoryCache.resources.length === 0 && !hasInitializedFromDb) {
     await preloadAllCatalogs()
   }
 
@@ -127,7 +195,27 @@ export async function searchDofusItems(
     return searchCache.get(cacheKey)!
   }
 
-  const results: DofusItem[] = []
+  // 2. Search directly in memory first (super fast)
+  const allInMemory = await getPreloadedCatalog(category || 'all')
+  const matchedInMemory = allInMemory.filter(it => {
+    if (it.level < minLevel || it.level > maxLevel) return false
+    return it.name.toLowerCase().includes(trimmed) || (it.type?.name && it.type.name.toLowerCase().includes(trimmed))
+  })
+
+  // If good matches found locally, sort and return immediately
+  if (matchedInMemory.length >= 10) {
+    matchedInMemory.sort((a, b) => {
+      const aExact = a.name.toLowerCase() === trimmed
+      const bExact = b.name.toLowerCase() === trimmed
+      if (aExact && !bExact) return -1
+      if (!aExact && bExact) return 1
+      return (b.level || 0) - (a.level || 0)
+    })
+    searchCache.set(cacheKey, matchedInMemory)
+    return matchedInMemory
+  }
+
+  const results: DofusItem[] = [...matchedInMemory]
 
   // Runes search
   if (!category || category === 'all' || category === 'runes' || category === 'resources') {
@@ -136,7 +224,12 @@ export async function searchDofusItems(
       r.stat.toLowerCase().includes(trimmed) ||
       r.category.toLowerCase().includes(trimmed)
     ).map(runeToDofusItem)
-    results.push(...matchedRunes)
+
+    matchedRunes.forEach(r => {
+      if (!results.some(x => x.ankama_id === r.ankama_id)) {
+        results.push(r)
+      }
+    })
   }
 
   // Live API endpoints to query
@@ -199,7 +292,7 @@ export async function searchDofusItems(
     return (b.level || 0) - (a.level || 0)
   })
 
-  const topResults = filtered.slice(0, 80)
+  const topResults = filtered.slice(0, 100)
   searchCache.set(cacheKey, topResults)
   return topResults
 }

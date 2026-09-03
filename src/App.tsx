@@ -1,20 +1,20 @@
 import React, { useState } from 'react'
+import { useCraftStore } from './store/useCraftStore'
 import { Navbar } from './components/Navbar'
 import { FastHDVIndexer } from './components/FastHDVIndexer'
-import { MultiCraftPlannerView } from './components/MultiCraftPlannerView'
 import { CraftWorkshop } from './components/CraftWorkshop'
 import { InventoryView } from './components/InventoryView'
 import { HDVHistoryView } from './components/HDVHistoryView'
 import { SalesTrackerView } from './components/SalesTrackerView'
 import { RecipeBrowserView } from './components/RecipeBrowserView'
 import { AnalyticsView } from './components/AnalyticsView'
-import { HDVPurchaseModal } from './components/HDVPurchaseModal'
+import { MultiCraftPlannerView } from './components/MultiCraftPlannerView'
 import { ServerSelectModal } from './components/ServerSelectModal'
+import { HDVPurchaseModal } from './components/HDVPurchaseModal'
 import { CrushItemModal } from './components/CrushItemModal'
-import { useCraftStore } from './store/useCraftStore'
 import { DofusItem, StockItem } from './types'
 
-export const App: React.FC = () => {
+export function App() {
   const {
     currentServer,
     hasChosenServer,
@@ -51,7 +51,12 @@ export const App: React.FC = () => {
     clearCraftPlan,
     clearAllData,
     exportDataJson,
-    importDataJson
+    importDataJson,
+    priceDataSource,
+    setPriceDataSource,
+    marketPrices,
+    effectivePrices,
+    publishMarketPrice
   } = useCraftStore()
 
   const [globalSearch, setGlobalSearch] = useState('')
@@ -86,9 +91,13 @@ export const App: React.FC = () => {
     setIsCrushModalOpen(true)
   }
 
+  const togglePriceSource = () => {
+    setPriceDataSource(priceDataSource === 'global' ? 'local' : 'global')
+  }
+
   return (
-    <div className="min-h-screen bg-[#0d1117] text-[#e6edf3] flex flex-col selection:bg-yellow-500/30 selection:text-yellow-200">
-      {/* Navbar with Server Switcher & PWA */}
+    <div className="min-h-screen bg-[#0c0e12] text-[#f0f3f6] flex flex-col selection:bg-yellow-500/20 selection:text-yellow-300">
+      {/* Navbar with Server Switcher, Price Mode Toggle & PWA */}
       <Navbar
         activeTab={activeTab as any}
         onSelectTab={setActiveTab as any}
@@ -102,10 +111,12 @@ export const App: React.FC = () => {
         craftPlanCount={craftPlan.length}
         globalSearch={globalSearch}
         onGlobalSearchChange={setGlobalSearch}
+        priceDataSource={priceDataSource}
+        onTogglePriceDataSource={togglePriceSource}
       />
 
       {/* Main Content View Switcher */}
-      <main className="max-w-7xl mx-auto px-4 py-6 flex-1 w-full">
+      <main className="max-w-7xl mx-auto px-4 py-5 flex-1 w-full">
         {activeTab === 'fast-hdv' && (
           <FastHDVIndexer
             onAddMultipleBatches={addMultipleBatches}
@@ -133,14 +144,14 @@ export const App: React.FC = () => {
             selectedItem={selectedItemForCraft}
             stockItems={stockItems}
             referencePrices={referencePrices}
-            latestKnownPrices={latestKnownPrices}
+            latestKnownPrices={effectivePrices}
             latestCrushesByItem={latestCrushesByItem}
             onSelectItem={setSelectedItemForCraft}
             onExecuteCraft={executeCraft}
             onOpenHDVWithItem={(item, qty) => handleOpenHDVModal(item, qty)}
             onAddSingleBatch={addPurchaseBatch}
             onAddMultipleBatches={addMultipleBatches}
-            onUpdateRefPrice={updateReferencePrice}
+            onUpdateRefPrice={publishMarketPrice}
             onUpdateMultipleRefPrices={updateMultipleRefPrices}
           />
         )}
@@ -156,7 +167,7 @@ export const App: React.FC = () => {
             onOpenCrushModal={handleOpenCrushModal}
             onDeleteBatch={deleteBatch}
             onClearBatchesByCategory={clearBatchesByCategory}
-            onUpdateRefPrice={updateReferencePrice}
+            onUpdateRefPrice={publishMarketPrice}
             onOpenHDVModal={() => setActiveTab('fast-hdv' as any)}
           />
         )}
@@ -182,11 +193,14 @@ export const App: React.FC = () => {
           <RecipeBrowserView
             stockItems={stockItems}
             referencePrices={referencePrices}
-            latestKnownPrices={latestKnownPrices}
+            latestKnownPrices={effectivePrices}
+            marketPrices={marketPrices}
+            priceDataSource={priceDataSource}
+            onTogglePriceDataSource={togglePriceSource}
             searchQuery={globalSearch}
             onSelectForCraft={handleSelectForCraft}
             onOpenHDVWithItem={(item) => handleOpenHDVModal(item)}
-            onUpdateRefPrice={updateReferencePrice}
+            onUpdateRefPrice={publishMarketPrice}
           />
         )}
 
@@ -207,7 +221,7 @@ export const App: React.FC = () => {
         )}
       </main>
 
-      {/* Server Choice Modal (Onboarding & Switcher) */}
+      {/* Server Choice Modal */}
       <ServerSelectModal
         isOpen={isServerModalOpen}
         currentServer={currentServer}
@@ -242,13 +256,13 @@ export const App: React.FC = () => {
       />
 
       {/* Footer */}
-      <footer className="mt-auto border-t border-[#21262d] bg-[#161b22] py-3.5 text-xs text-slate-500">
+      <footer className="mt-auto border-t border-[#232730] bg-[#14171d] py-3 text-xs text-slate-500">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <p className="font-semibold text-slate-400">
-            DofusCraft Ledger v3 • Indexeur HDV, Multi-Crafts, Brisage & Stock Dofus 3
+          <p className="font-medium text-slate-400">
+            DofusCraft Ledger • Cours HDV, Multi-Crafts & Gestion de Stock Dofus 3
           </p>
-          <p className="text-[11px] text-slate-600">
-            Serveur actif : <strong className="text-yellow-400 font-bold">{currentServer}</strong> • 100% PWA installable
+          <p className="text-[11px] text-slate-500">
+            Serveur : <strong className="text-yellow-400">{currentServer}</strong> • Mode prix : <strong className="text-white uppercase">{priceDataSource}</strong>
           </p>
         </div>
       </footer>

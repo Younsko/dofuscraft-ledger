@@ -60,7 +60,7 @@ export const HDVHistoryView: React.FC<HDVHistoryViewProps> = ({
 
         <button
           onClick={onOpenHDVModal}
-          className="px-4 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold rounded-xl shadow-lg shadow-amber-500/20 text-xs flex items-center gap-2 transition"
+          className="px-4 py-2 bg-yellow-500 hover:bg-yellow-400 text-slate-950 font-bold rounded-lg text-xs flex items-center gap-1.5 transition"
         >
           <Plus className="w-4 h-4" />
           <span>Nouvel Achat HDV</span>
