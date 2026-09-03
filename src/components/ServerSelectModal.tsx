@@ -27,7 +27,7 @@ export const ServerSelectModal: React.FC<ServerSelectModalProps> = ({
         <div className="flex items-start justify-between">
           <div>
             <h2 className="text-base font-bold text-white font-dofus">
-              {isFirstVisit ? 'Bienvenue sur DofusCraft Ledger' : 'Changer de Serveur'}
+              {isFirstVisit ? 'Bienvenue sur KamaCraft' : 'Changer de Serveur'}
             </h2>
             <p className="text-xs text-slate-400 mt-0.5">
               Sélectionnez votre serveur de jeu. Vos stocks, achats et prix HDV sont strictement isolés par serveur.

@@ -2,6 +2,20 @@
   command = "npm run build"
   publish = "dist"
 
+# Redirection permanente des anciens accès vers KamaCraft
+[[redirects]]
+  from = "https://dofuscraft-ledger.netlify.app/*"
+  to = "https://kamacraft.netlify.app/:splat"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://dofuscraftledger.netlify.app/*"
+  to = "https://kamacraft.netlify.app/:splat"
+  status = 301
+  force = true
+
+# SPA fallback
 [[redirects]]
   from = "/*"
   to = "/index.html"

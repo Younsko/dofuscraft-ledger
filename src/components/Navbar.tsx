@@ -101,14 +101,14 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div>
             <div className="flex items-center gap-1.5 leading-none">
               <span className="font-extrabold font-dofus tracking-wide text-white text-base">
-                DOFUS<span className="text-yellow-500">CRAFT</span>
+                KAMA<span className="text-yellow-500">CRAFT</span>
               </span>
               <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 bg-[#1b1f27] text-yellow-500 border border-[#2b313d] rounded">
                 v3
               </span>
             </div>
             <p className="text-[10px] text-slate-400 hidden sm:block mt-0.5">
-              Indexeur HDV et Gestion de Stock
+              Indexeur HDV, Cours & Stock Dofus 3
             </p>
           </div>
         </div>

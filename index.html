@@ -4,13 +4,28 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="https://api.dofusdu.de/dofus3/v1/img/item/9047-64.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>DofusCraft Ledger | HDV, Stock & PRU Dofus 3</title>
-    <!-- Google Fonts: Marcellus & Outfit -->
+    <title>KamaCraft • Indexeur HDV, Cours & Gestion de Stock Dofus 3</title>
+    <meta name="description" content="KamaCraft : L'outil d'indexation HDV rapide, calcul de rentabilité craft et suivi des cours du marché pour Dofus 3." />
+
+    <!-- Redirection automatique depuis les anciens domaines -->
+    <script>
+      (function() {
+        var host = window.location.hostname;
+        if (host.indexOf('dofuscraft-ledger') !== -1 || host.indexOf('dofuscraftledger') !== -1) {
+          window.location.replace('https://kamacraft.netlify.app' + window.location.pathname + window.location.search + window.location.hash);
+        }
+      })();
+    </script>
+
+    <!-- Google Fonts: Marcellus, Outfit & JetBrains Mono -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Marcellus&family=Outfit:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- GoatCounter Analytics (Gratuit, 0 cookie, respectueux de la vie privée) -->
+    <script data-goatcounter="https://kamacraft.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
   </head>
-  <body class="bg-[#0d1117] text-[#e6edf3] min-h-screen antialiased selection:bg-yellow-500/30 selection:text-yellow-200 overflow-x-hidden">
+  <body class="bg-[#0c0e12] text-[#f0f3f6] min-h-screen antialiased selection:bg-yellow-500/20 selection:text-yellow-300 overflow-x-hidden">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

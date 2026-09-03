@@ -259,7 +259,7 @@ export function App() {
       <footer className="mt-auto border-t border-[#232730] bg-[#14171d] py-3 text-xs text-slate-500">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
           <p className="font-medium text-slate-400">
-            DofusCraft Ledger • Cours HDV, Multi-Crafts & Gestion de Stock Dofus 3
+            KamaCraft • Cours HDV, Multi-Crafts & Gestion de Stock Dofus 3
           </p>
           <p className="text-[11px] text-slate-500">
             Serveur : <strong className="text-yellow-400">{currentServer}</strong> • Mode prix : <strong className="text-white uppercase">{priceDataSource}</strong>
