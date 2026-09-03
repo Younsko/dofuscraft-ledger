@@ -16,12 +16,15 @@ import { formatKamasCompact } from '../utils/formatters'
 import { DofusMetierLogo } from './DofusMetierLogo'
 import { DOFUS_SERVERS } from '../data/serversData'
 import { PriceDataSource } from '../types'
+import { Cloud } from 'lucide-react'
 
 interface NavbarProps {
   activeTab: 'workshop' | 'fast-hdv' | 'multi-craft' | 'inventory' | 'hdv' | 'sales' | 'encyclopedia' | 'analytics'
   onSelectTab: (tab: 'workshop' | 'fast-hdv' | 'multi-craft' | 'inventory' | 'hdv' | 'sales' | 'encyclopedia' | 'analytics') => void
   onOpenHDVModal: () => void
   onOpenServerModal: () => void
+  onOpenCloudModal?: () => void
+  isCloudActive?: boolean
   currentServer: string
   totalStockValue: number
   totalNetProfit: number
@@ -39,6 +42,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onSelectTab,
   onOpenHDVModal,
   onOpenServerModal,
+  onOpenCloudModal,
+  isCloudActive = false,
   currentServer,
   totalStockValue,
   totalNetProfit,
@@ -167,6 +172,25 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span className="font-bold text-white text-xs">{serverObj.name}</span>
             <ChevronDown className="w-3 h-3 text-slate-400" />
           </button>
+
+          {/* Cloud Sync Status / Config Button */}
+          {onOpenCloudModal && (
+            <button
+              type="button"
+              onClick={onOpenCloudModal}
+              className={`flex items-center gap-1.5 px-2 py-1.5 bg-[#0c0e12] hover:bg-[#1b1f27] border rounded-lg text-xs transition ${
+                isCloudActive
+                  ? 'border-emerald-700/50 text-emerald-400'
+                  : 'border-[#232730] text-slate-400 hover:text-white'
+              }`}
+              title={isCloudActive ? 'Cloud Supabase actif en temps réel' : 'Configurer le Cloud communautaire'}
+            >
+              <Cloud className="w-3.5 h-3.5" />
+              <span className="hidden lg:inline font-medium text-[11px]">
+                {isCloudActive ? 'Cloud Actif' : 'Cloud'}
+              </span>
+            </button>
+          )}
 
           {/* PWA Install Button */}
           {canInstallPWA && (

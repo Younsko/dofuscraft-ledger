@@ -12,6 +12,9 @@ import { MultiCraftPlannerView } from './components/MultiCraftPlannerView'
 import { ServerSelectModal } from './components/ServerSelectModal'
 import { HDVPurchaseModal } from './components/HDVPurchaseModal'
 import { CrushItemModal } from './components/CrushItemModal'
+import { CloudSyncModal } from './components/CloudSyncModal'
+import { supabaseService } from './services/supabaseService'
+import { marketSyncService } from './services/marketSyncService'
 import { DofusItem, StockItem } from './types'
 
 export function App() {
@@ -66,6 +69,13 @@ export function App() {
   const [preselectedHDVQty, setPreselectedHDVQty] = useState<number>(100)
   const [isCrushModalOpen, setIsCrushModalOpen] = useState(false)
   const [itemToCrush, setItemToCrush] = useState<StockItem | null>(null)
+  const [isCloudModalOpen, setIsCloudModalOpen] = useState(false)
+  const [isCloudActive, setIsCloudActive] = useState(() => supabaseService.isConfigured())
+
+  // Initialize server sync with cloud on mount or server change
+  useEffect(() => {
+    marketSyncService.initServerSync(currentServer)
+  }, [currentServer])
 
   // Track pageviews in GoatCounter for SPA tab switches
   useEffect(() => {
@@ -107,12 +117,14 @@ export function App() {
 
   return (
     <div className="min-h-screen bg-[#0c0e12] text-[#f0f3f6] flex flex-col selection:bg-yellow-500/20 selection:text-yellow-300">
-      {/* Navbar with Server Switcher, Price Mode Toggle & PWA */}
+      {/* Navbar with Server Switcher, Cloud Sync, Price Mode Toggle & PWA */}
       <Navbar
         activeTab={activeTab as any}
         onSelectTab={setActiveTab as any}
         onOpenHDVModal={() => handleOpenHDVModal()}
         onOpenServerModal={() => setIsServerModalOpen(true)}
+        onOpenCloudModal={() => setIsCloudModalOpen(true)}
+        isCloudActive={isCloudActive}
         currentServer={currentServer}
         totalStockValue={totalStockValue}
         totalNetProfit={totalNetProfit}
@@ -263,6 +275,19 @@ export function App() {
           setItemToCrush(null)
         }}
         onRecordCrush={recordCrush}
+      />
+
+      {/* Cloud Sync Configuration Modal */}
+      <CloudSyncModal
+        isOpen={isCloudModalOpen}
+        onClose={() => {
+          setIsCloudModalOpen(false)
+          setIsCloudActive(supabaseService.isConfigured())
+        }}
+        currentServer={currentServer}
+        onSyncComplete={() => {
+          setIsCloudActive(supabaseService.isConfigured())
+        }}
       />
 
       {/* Footer */}

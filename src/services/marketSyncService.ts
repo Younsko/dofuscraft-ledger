@@ -1,11 +1,13 @@
 import { MarketPriceEntry } from '../types'
-import { getInitialMarketPricesForServer } from '../data/seedMarketPrices'
+import { supabaseService } from './supabaseService'
 
-const BROADCAST_CHANNEL_NAME = 'dofuscraft_market_prices_v1'
+const BROADCAST_CHANNEL_NAME = 'kamacraft_market_prices_v1'
 
 class MarketSyncService {
   private channel: BroadcastChannel | null = null
   private listeners: Set<(entry: MarketPriceEntry) => void> = new Set()
+  private cloudUnsubscribe: (() => void) | null = null
+  private activeServer: string = ''
 
   constructor() {
     if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
@@ -23,7 +25,7 @@ class MarketSyncService {
   }
 
   /**
-   * Subscribe to live cross-tab price updates
+   * Subscribe to live cross-tab & cloud price updates
    */
   public subscribe(callback: (entry: MarketPriceEntry) => void): () => void {
     this.listeners.add(callback)
@@ -43,7 +45,74 @@ class MarketSyncService {
   }
 
   /**
-   * Load market prices for a specific server from localStorage (strictly real user data)
+   * Initialize cloud subscription & sync for a specific server
+   */
+  public initServerSync(serverId: string) {
+    if (this.activeServer === serverId.toLowerCase() && this.cloudUnsubscribe) {
+      return
+    }
+
+    this.activeServer = serverId.toLowerCase()
+
+    if (this.cloudUnsubscribe) {
+      this.cloudUnsubscribe()
+      this.cloudUnsubscribe = null
+    }
+
+    // Subscribe to cloud Realtime changes
+    if (supabaseService.isConfigured()) {
+      this.cloudUnsubscribe = supabaseService.subscribeToServer(serverId, (entry) => {
+        const current = this.loadPricesForServer(serverId)
+        const existing = current[entry.item_ankama_id]
+
+        // Only update if newer or not present
+        if (!existing || new Date(entry.updated_at).getTime() >= new Date(existing.updated_at).getTime()) {
+          current[entry.item_ankama_id] = entry
+          this.savePricesForServer(serverId, current)
+          this.notifyListeners(entry)
+        }
+      })
+
+      // Fetch all server prices from cloud in background
+      this.syncFromCloud(serverId)
+    }
+  }
+
+  /**
+   * Fetch complete server price book from cloud and merge with local storage
+   */
+  public async syncFromCloud(serverId: string): Promise<number> {
+    if (!supabaseService.isConfigured()) return 0
+
+    try {
+      const cloudPrices = await supabaseService.fetchServerPrices(serverId)
+      if (cloudPrices.length === 0) return 0
+
+      const current = this.loadPricesForServer(serverId)
+      let updatedCount = 0
+
+      for (const cloudEntry of cloudPrices) {
+        const existing = current[cloudEntry.item_ankama_id]
+        if (!existing || new Date(cloudEntry.updated_at).getTime() > new Date(existing.updated_at).getTime()) {
+          current[cloudEntry.item_ankama_id] = cloudEntry
+          updatedCount++
+          this.notifyListeners(cloudEntry)
+        }
+      }
+
+      if (updatedCount > 0) {
+        this.savePricesForServer(serverId, current)
+      }
+
+      return updatedCount
+    } catch (err) {
+      console.warn('syncFromCloud error:', err)
+      return 0
+    }
+  }
+
+  /**
+   * Load market prices for a specific server from localStorage
    */
   public loadPricesForServer(serverId: string): Record<number, MarketPriceEntry> {
     const key = `dofuscraft_market_prices_${serverId.toLowerCase()}_v1`
@@ -51,14 +120,12 @@ class MarketSyncService {
       const saved = localStorage.getItem(key)
       if (saved) {
         const parsed: Record<number, MarketPriceEntry> = JSON.parse(saved)
-        // Strictly filter out any fake seed/mock data
         const clean: Record<number, MarketPriceEntry> = {}
         for (const [idStr, entry] of Object.entries(parsed)) {
           if (entry && entry.source !== 'seed' && entry.price > 0) {
             clean[parseInt(idStr)] = entry
           }
         }
-        this.savePricesForServer(serverId, clean)
         return clean
       }
     } catch (e) {
@@ -81,7 +148,7 @@ class MarketSyncService {
   }
 
   /**
-   * Publish a single price update
+   * Publish a single price update to local, cross-tab, and Cloud Supabase
    */
   public publishPrice(
     serverId: string,
@@ -89,7 +156,7 @@ class MarketSyncService {
     price: number,
     itemName?: string,
     source: 'community' | 'local' | 'ocr' | 'seed' = 'community',
-    author: string = 'Moi'
+    author: string = 'Artisan'
   ): MarketPriceEntry {
     const entry: MarketPriceEntry = {
       item_ankama_id: itemAnkamaId,
@@ -101,18 +168,23 @@ class MarketSyncService {
       author
     }
 
-    // Update in localStorage
+    // 1. Update in localStorage
     const current = this.loadPricesForServer(serverId)
     current[itemAnkamaId] = entry
     this.savePricesForServer(serverId, current)
 
-    // Broadcast to other tabs
+    // 2. Broadcast to other browser tabs
     if (this.channel) {
       try {
         this.channel.postMessage({ type: 'PRICE_UPDATE', entry })
       } catch (err) {
-        console.warn('Failed to postMessage on BroadcastChannel:', err)
+        console.warn('BroadcastChannel postMessage error:', err)
       }
+    }
+
+    // 3. Push to Cloud Supabase
+    if (supabaseService.isConfigured()) {
+      supabaseService.upsertPrice(entry).catch(err => console.warn('Cloud sync error:', err))
     }
 
     this.notifyListeners(entry)
@@ -126,10 +198,11 @@ class MarketSyncService {
     serverId: string,
     items: Array<{ itemAnkamaId: number; price: number; itemName?: string }>,
     source: 'community' | 'local' | 'ocr' | 'seed' = 'community',
-    author: string = 'Moi'
+    author: string = 'Artisan'
   ): Record<number, MarketPriceEntry> {
     const current = this.loadPricesForServer(serverId)
     const now = new Date().toISOString()
+    const entriesToSync: MarketPriceEntry[] = []
 
     for (const it of items) {
       if (it.itemAnkamaId && it.price > 0) {
@@ -143,6 +216,7 @@ class MarketSyncService {
           author
         }
         current[it.itemAnkamaId] = entry
+        entriesToSync.push(entry)
 
         if (this.channel) {
           try {
@@ -154,6 +228,12 @@ class MarketSyncService {
     }
 
     this.savePricesForServer(serverId, current)
+
+    // Push batch to Cloud Supabase
+    if (supabaseService.isConfigured() && entriesToSync.length > 0) {
+      supabaseService.upsertMultiplePrices(entriesToSync).catch(err => console.warn('Cloud batch error:', err))
+    }
+
     return current
   }
 }
