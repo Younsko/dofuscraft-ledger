@@ -43,25 +43,29 @@ class MarketSyncService {
   }
 
   /**
-   * Load market prices for a specific server from localStorage, seeding if empty
+   * Load market prices for a specific server from localStorage (strictly real user data)
    */
   public loadPricesForServer(serverId: string): Record<number, MarketPriceEntry> {
     const key = `dofuscraft_market_prices_${serverId.toLowerCase()}_v1`
     try {
       const saved = localStorage.getItem(key)
       if (saved) {
-        const parsed = JSON.parse(saved)
-        // Merge with seed prices to ensure newly seeded items exist
-        const seed = getInitialMarketPricesForServer(serverId)
-        return { ...seed, ...parsed }
+        const parsed: Record<number, MarketPriceEntry> = JSON.parse(saved)
+        // Strictly filter out any fake seed/mock data
+        const clean: Record<number, MarketPriceEntry> = {}
+        for (const [idStr, entry] of Object.entries(parsed)) {
+          if (entry && entry.source !== 'seed' && entry.price > 0) {
+            clean[parseInt(idStr)] = entry
+          }
+        }
+        this.savePricesForServer(serverId, clean)
+        return clean
       }
     } catch (e) {
       console.warn('Failed to parse saved market prices:', e)
     }
 
-    const initial = getInitialMarketPricesForServer(serverId)
-    this.savePricesForServer(serverId, initial)
-    return initial
+    return {}
   }
 
   /**
