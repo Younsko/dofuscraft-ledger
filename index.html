@@ -7,12 +7,46 @@
     <title>KamaCraft • Indexeur HDV, Cours & Gestion de Stock Dofus 3</title>
     <meta name="description" content="KamaCraft : L'outil d'indexation HDV rapide, calcul de rentabilité craft et suivi des cours du marché pour Dofus 3." />
 
-    <!-- Redirection automatique depuis les anciens domaines -->
+    <!-- Redirection automatique et Migration transparente des données utilisateurs -->
     <script>
       (function() {
-        var host = window.location.hostname;
-        if (host.indexOf('dofuscraft-ledger') !== -1 || host.indexOf('dofuscraftledger') !== -1) {
-          window.location.replace('https://kamacraft.netlify.app' + window.location.pathname + window.location.search + window.location.hash);
+        try {
+          var host = window.location.hostname;
+          var isOldDomain = host.indexOf('dofuscraft-ledger') !== -1 || host.indexOf('dofuscraftledger') !== -1;
+
+          // 1. Depuis l'ancien domaine : exporter toutes les données locales et rediriger
+          if (isOldDomain) {
+            var migrationPayload = {};
+            for (var i = 0; i < localStorage.length; i++) {
+              var key = localStorage.key(i);
+              if (key && (key.indexOf('dofuscraft_') === 0 || key.indexOf('kamacraft_') === 0)) {
+                migrationPayload[key] = localStorage.getItem(key);
+              }
+            }
+            var hashData = '';
+            if (Object.keys(migrationPayload).length > 0) {
+              hashData = '#migrated_data=' + encodeURIComponent(JSON.stringify(migrationPayload));
+            }
+            window.location.replace('https://kamacraft.netlify.app' + window.location.pathname + window.location.search + hashData);
+            return;
+          }
+
+          // 2. Sur le nouveau domaine (kamacraft) : réimporter automatiquement les données reçues
+          if (window.location.hash && window.location.hash.indexOf('#migrated_data=') === 0) {
+            var raw = window.location.hash.substring('#migrated_data='.length);
+            var importedData = JSON.parse(decodeURIComponent(raw));
+            for (var k in importedData) {
+              if (importedData.hasOwnProperty(k) && importedData[k]) {
+                localStorage.setItem(k, importedData[k]);
+              }
+            }
+            // Nettoyer la barre d'adresse pour un affichage propre
+            if (window.history && window.history.replaceState) {
+              window.history.replaceState(null, '', window.location.pathname + window.location.search);
+            }
+          }
+        } catch (err) {
+          console.warn('Migration data error:', err);
         }
       })();
     </script>

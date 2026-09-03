@@ -642,6 +642,7 @@ export const CraftWorkshop: React.FC<CraftWorkshopProps> = ({
                     </div>
 
                     {/* Right: Direct Inline Inputs & 1-Click Action Buttons */}
+                    {/* Right: Direct Inline Inputs & 1-Click Action Buttons */}
                     <div className="flex items-center gap-2 shrink-0 flex-wrap sm:flex-nowrap justify-end">
                       {/* Inline Unit Price Input */}
                       <div className="relative">
@@ -653,9 +654,9 @@ export const CraftWorkshop: React.FC<CraftWorkshopProps> = ({
                             if (e.key === 'Enter') handleInlineBuyBatch(req)
                           }}
                           placeholder="Prix/u"
-                          className="w-20 pl-2 pr-4 py-1 bg-[#0d1117] border border-[#30363d] rounded-lg text-xs font-mono text-yellow-400 placeholder-slate-600 focus:border-yellow-500 outline-none"
+                          className="w-24 pl-2.5 pr-5 py-1.5 bg-[#0c0e12] border border-[#232730] rounded-lg text-xs font-mono text-yellow-400 placeholder-slate-600 focus:border-yellow-500 outline-none"
                         />
-                        <span className="absolute right-1.5 top-1 text-[10px] text-slate-500 font-bold pointer-events-none">K</span>
+                        <span className="absolute right-2 top-1.5 text-[10px] text-slate-500 font-bold pointer-events-none">K</span>
                       </div>
 
                       {/* Inline Quantity Input */}
@@ -669,7 +670,7 @@ export const CraftWorkshop: React.FC<CraftWorkshopProps> = ({
                             if (e.key === 'Enter') handleInlineBuyBatch(req)
                           }}
                           placeholder="Qté"
-                          className="w-14 px-1.5 py-1 bg-[#0d1117] border border-[#30363d] rounded-lg text-xs font-mono text-white text-center focus:border-yellow-500 outline-none"
+                          className="w-16 px-2 py-1.5 bg-[#0c0e12] border border-[#232730] rounded-lg text-xs font-mono text-white text-center focus:border-yellow-500 outline-none"
                         />
                       </div>
 
