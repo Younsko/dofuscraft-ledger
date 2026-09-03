@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Cloud, Check, X, RefreshCw, Database, ExternalLink } from 'lucide-react'
+import { Cloud, Check, X, RefreshCw, Database, ChevronDown, ChevronRight, ShieldCheck } from 'lucide-react'
 import { tursoService } from '../services/tursoService'
 import { marketSyncService } from '../services/marketSyncService'
 
@@ -21,6 +21,7 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
   const [isSyncing, setIsSyncing] = useState(false)
   const [syncStatusMessage, setSyncStatusMessage] = useState<string | null>(null)
   const [isConfigured, setIsConfigured] = useState(tursoService.isConfigured())
+  const [showAdvanced, setShowAdvanced] = useState(false)
 
   if (!isOpen) return null
 
@@ -30,40 +31,45 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
     setIsConfigured(success)
 
     if (success) {
-      setSyncStatusMessage('Connexion à Turso réussie ! Initialisation...')
+      setSyncStatusMessage('Connexion à Turso validée !')
       setIsSyncing(true)
       marketSyncService.initServerSync(currentServer)
       const count = await marketSyncService.syncFromCloud(currentServer)
       setIsSyncing(false)
-      setSyncStatusMessage(`Connecté avec succès ! ${count} cours synchronisés depuis le Cloud.`)
+      setSyncStatusMessage(`Synchronisation réussie (${count} cours mis à jour depuis le Cloud).`)
       if (onSyncComplete) onSyncComplete(count)
     } else {
-      setSyncStatusMessage('Veuillez renseigner une URL de base Turso et un Token valides.')
+      setSyncStatusMessage('URL ou Token invalide.')
     }
   }
 
   const handleManualSyncNow = async () => {
     setIsSyncing(true)
-    setSyncStatusMessage('Synchronisation des cours depuis Turso...')
+    setSyncStatusMessage('Synchronisation des cours en direct...')
     const count = await marketSyncService.syncFromCloud(currentServer)
     setIsSyncing(false)
-    setSyncStatusMessage(`${count} cours actualisés depuis Turso !`)
+    setSyncStatusMessage(`${count} cours actualisés depuis le Cloud !`)
     if (onSyncComplete) onSyncComplete(count)
   }
 
   return (
     <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
-      <div className="bg-[#14171d] border border-[#232730] rounded-xl max-w-xl w-full p-5 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+      <div className="bg-[#14171d] border border-[#232730] rounded-xl max-w-lg w-full p-5 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-start justify-between pb-2 border-b border-[#232730]">
-          <div className="flex items-center gap-2">
-            <Cloud className={`w-5 h-5 ${isConfigured ? 'text-emerald-400' : 'text-slate-400'}`} />
+        <div className="flex items-start justify-between pb-3 border-b border-[#232730]">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-emerald-950/60 border border-emerald-700/50 flex items-center justify-center text-emerald-400">
+              <Cloud className="w-4 h-4" />
+            </div>
             <div>
-              <h2 className="text-base font-bold text-white font-dofus">
-                Synchronisation Cloud Communautaire (Turso)
+              <h2 className="text-base font-bold text-white font-dofus flex items-center gap-2">
+                <span>Réseau Cloud Communautaire</span>
+                <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 bg-emerald-950/80 text-emerald-400 border border-emerald-800 rounded">
+                  EN LIGNE
+                </span>
               </h2>
               <p className="text-xs text-slate-400">
-                Partagez et recevez les cours HDV en direct avec tous les joueurs de votre serveur.
+                Synchronisation instantanée des cours HDV partagés par les joueurs.
               </p>
             </div>
           </div>
@@ -76,107 +82,112 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
           </button>
         </div>
 
-        {/* Current Status Pill */}
-        <div className="p-3 bg-[#0c0e12] rounded-lg border border-[#232730] flex items-center justify-between">
-          <div className="flex items-center gap-2 text-xs">
-            <span className={`w-2.5 h-2.5 rounded-full ${isConfigured ? 'bg-emerald-400' : 'bg-slate-500'}`} />
-            <span className="font-semibold text-white">
-              {isConfigured ? 'Cloud Turso Connecté' : 'Mode Local (Non connecté au Cloud)'}
-            </span>
-            <span className="text-slate-400 font-mono">• Serveur : {currentServer}</span>
-          </div>
+        {/* Live Status Card */}
+        <div className="p-4 bg-[#0c0e12] rounded-xl border border-[#232730] space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-xs">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="font-bold text-white">
+                Base Cloud Active (Turso)
+              </span>
+            </div>
 
-          {isConfigured && (
             <button
               type="button"
               onClick={handleManualSyncNow}
               disabled={isSyncing}
-              className="px-2.5 py-1 bg-[#232730] hover:bg-[#353b47] text-yellow-400 text-xs font-semibold rounded flex items-center gap-1.5 transition"
+              className="px-3 py-1 bg-yellow-500 hover:bg-yellow-400 text-slate-950 text-xs font-bold rounded-lg flex items-center gap-1.5 transition shadow-xs cursor-pointer"
             >
               <RefreshCw className={`w-3 h-3 ${isSyncing ? 'animate-spin' : ''}`} />
-              <span>Actualiser</span>
+              <span>Actualiser les cours</span>
             </button>
-          )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 pt-1 text-[11px] font-mono">
+            <div className="bg-[#14171d] p-2 rounded-lg border border-[#232730]">
+              <span className="text-slate-500 block">Serveur actif :</span>
+              <strong className="text-yellow-400 uppercase text-xs">{currentServer}</strong>
+            </div>
+            <div className="bg-[#14171d] p-2 rounded-lg border border-[#232730]">
+              <span className="text-slate-500 block">Base de données :</span>
+              <strong className="text-emerald-400 text-xs">kamacraft-db (EU)</strong>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 text-xs text-slate-400 pt-1">
+            <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span>
+              Tous vos scans et indexations sont automatiquement enregistrés et synchronisés pour la communauté.
+            </span>
+          </div>
         </div>
 
         {syncStatusMessage && (
-          <div className="p-2.5 bg-[#1b221d] border border-[#263c2c] text-emerald-300 rounded-lg text-xs font-medium">
-            {syncStatusMessage}
+          <div className="p-2.5 bg-[#122319] border border-[#1e462d] text-emerald-300 rounded-lg text-xs font-medium flex items-center gap-2">
+            <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+            <span>{syncStatusMessage}</span>
           </div>
         )}
 
-        {/* Turso Advantages & Setup */}
-        <div className="space-y-3 text-xs text-slate-300">
-          <div className="p-3 bg-[#0c0e12] rounded-lg border border-[#232730] space-y-2">
-            <h4 className="font-bold text-white uppercase text-[11px] tracking-wider flex items-center gap-1.5">
-              <Database className="w-3.5 h-3.5 text-yellow-400" />
-              Pourquoi Turso ?
-            </h4>
-            <ul className="space-y-1 text-slate-400 list-disc pl-4 text-[11px]">
-              <li><strong>500 bases de données gratuites</strong> (pas de limite à 2 projets).</li>
-              <li><strong>Ne se met JAMAIS en pause</strong> (reste allumé 24h/24, 365j/an).</li>
-              <li><strong>Création de table 100% automatique</strong> : vous n'avez aucun script SQL à taper, KamaCraft initialise la table tout seul.</li>
-            </ul>
+        {/* Collapsible Advanced Settings (for Admin / Override) */}
+        <div className="border-t border-[#232730] pt-2">
+          <button
+            type="button"
+            onClick={() => setShowAdvanced(!showAdvanced)}
+            className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-slate-300 transition cursor-pointer"
+          >
+            {showAdvanced ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+            <span>Paramètres avancés de la base de données</span>
+          </button>
 
-            <div className="pt-1.5 border-t border-[#1f242e] flex items-center justify-between">
-              <span className="text-[11px] text-slate-400">Créer une base gratuite sur Turso :</span>
-              <a
-                href="https://turso.tech"
-                target="_blank"
-                rel="noreferrer"
-                className="px-2.5 py-1 bg-[#232730] hover:bg-[#353b47] text-yellow-400 font-medium rounded text-[11px] flex items-center gap-1 transition"
-              >
-                <span>Ouvrir Turso.tech</span>
-                <ExternalLink className="w-3 h-3" />
-              </a>
-            </div>
-          </div>
+          {showAdvanced && (
+            <form onSubmit={handleSaveConfig} className="space-y-3 pt-3">
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+                  Turso Database URL
+                </label>
+                <input
+                  type="text"
+                  value={urlInput}
+                  onChange={(e) => setUrlInput(e.target.value)}
+                  className="w-full px-3 py-1.5 bg-[#0c0e12] border border-[#232730] rounded-lg text-xs font-mono text-white focus:border-yellow-500 outline-none"
+                />
+              </div>
 
-          {/* Form */}
-          <form onSubmit={handleSaveConfig} className="space-y-3 pt-1">
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-400 mb-1">
-                Turso Database URL
-              </label>
-              <input
-                type="text"
-                value={urlInput}
-                onChange={(e) => setUrlInput(e.target.value)}
-                placeholder="libsql://kamacraft-votrecompte.turso.io"
-                className="w-full px-3 py-1.5 bg-[#0c0e12] border border-[#232730] rounded-lg text-xs font-mono text-white placeholder-slate-600 focus:border-yellow-500 outline-none"
-              />
-            </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+                  Turso Auth Token
+                </label>
+                <input
+                  type="password"
+                  value={tokenInput}
+                  onChange={(e) => setTokenInput(e.target.value)}
+                  className="w-full px-3 py-1.5 bg-[#0c0e12] border border-[#232730] rounded-lg text-xs font-mono text-white focus:border-yellow-500 outline-none"
+                />
+              </div>
 
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-400 mb-1">
-                Turso Auth Token
-              </label>
-              <input
-                type="password"
-                value={tokenInput}
-                onChange={(e) => setTokenInput(e.target.value)}
-                placeholder="eyJhbGciOiJFZERTQSI..."
-                className="w-full px-3 py-1.5 bg-[#0c0e12] border border-[#232730] rounded-lg text-xs font-mono text-white placeholder-slate-600 focus:border-yellow-500 outline-none"
-              />
-            </div>
+              <div className="flex items-center justify-end gap-2 pt-1">
+                <button
+                  type="submit"
+                  className="px-3 py-1.5 bg-[#232730] hover:bg-[#353b47] text-white font-bold rounded-lg text-xs flex items-center gap-1 transition"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Enregistrer les identifiants</span>
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-3 py-1.5 text-xs text-slate-400 hover:text-white rounded-lg"
-              >
-                Fermer
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-1.5 bg-yellow-500 hover:bg-yellow-400 text-slate-950 font-bold rounded-lg text-xs flex items-center gap-1 transition"
-              >
-                <Check className="w-3.5 h-3.5" />
-                <span>Enregistrer & Activer Turso</span>
-              </button>
-            </div>
-          </form>
+        {/* Modal Footer */}
+        <div className="flex items-center justify-end pt-1">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-1.5 bg-[#232730] hover:bg-[#353b47] text-white font-medium rounded-lg text-xs transition cursor-pointer"
+          >
+            Fermer
+          </button>
         </div>
       </div>
     </div>

@@ -54,7 +54,7 @@ class TursoService {
     return (
       (typeof window !== 'undefined' ? localStorage.getItem(STORAGE_URL_KEY) : '') ||
       (import.meta.env.VITE_TURSO_DATABASE_URL as string) ||
-      ''
+      'libsql://kamacraft-db-younsko.aws-eu-west-1.turso.io'
     )
   }
 
@@ -62,7 +62,7 @@ class TursoService {
     return (
       (typeof window !== 'undefined' ? localStorage.getItem(STORAGE_TOKEN_KEY) : '') ||
       (import.meta.env.VITE_TURSO_AUTH_TOKEN as string) ||
-      ''
+      'eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3ODg0MjYzOTMsImlkIjoiMDFhMDY2ODQtZGYwMS03MTY2LTg1YzUtYzg5NjNkZmNmMzQzIiwia2lkIjoiQTBRTHlCRVhNYkhPVG1tREpadzJtcUxKcDdiT0lKa3ExTkdiUnN6X1B3RSIsInJpZCI6IjE0MzI4NGIyLTg3NzAtNGJmNC1iOGU5LTVjOGUyMGZhZWJmZiJ9.FFhn4AovEK7B5u4qI3XwMAKVWcSuiMukGOk_pSWoKTLUfncj3kRtbSTMXG3rj5pgsLBJrJ0c00loX0-AeRv0DA'
     )
   }
 

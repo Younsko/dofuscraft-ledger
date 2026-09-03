@@ -178,15 +178,16 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               type="button"
               onClick={onOpenCloudModal}
-              className={`flex items-center gap-1.5 px-2 py-1.5 bg-[#0c0e12] hover:bg-[#1b1f27] border rounded-lg text-xs transition ${
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition shrink-0 cursor-pointer ${
                 isCloudActive
-                  ? 'border-emerald-700/50 text-emerald-400'
-                  : 'border-[#232730] text-slate-400 hover:text-white'
+                  ? 'bg-[#122319] border border-[#1e462d] text-emerald-400 hover:bg-[#162d20]'
+                  : 'bg-[#1b1f27] border border-yellow-500/50 text-yellow-400 hover:bg-[#252a35]'
               }`}
-              title={isCloudActive ? 'Cloud Supabase actif en temps réel' : 'Configurer le Cloud communautaire'}
+              title="Statut du Cloud Communautaire Turso"
             >
-              <Cloud className="w-3.5 h-3.5" />
-              <span className="hidden lg:inline font-medium text-[11px]">
+              <span className={`w-2 h-2 rounded-full shrink-0 ${isCloudActive ? 'bg-emerald-400 animate-pulse' : 'bg-yellow-400'}`} />
+              <Cloud className="w-3.5 h-3.5 shrink-0" />
+              <span className="font-mono font-bold text-xs">
                 {isCloudActive ? 'Cloud Actif' : 'Cloud'}
               </span>
             </button>
