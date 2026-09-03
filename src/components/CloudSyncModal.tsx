@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
-import { Cloud, Check, Copy, X, RefreshCw, Database } from 'lucide-react'
-import { supabaseService } from '../services/supabaseService'
+import { Cloud, Check, X, RefreshCw, Database, ExternalLink } from 'lucide-react'
+import { tursoService } from '../services/tursoService'
 import { marketSyncService } from '../services/marketSyncService'
 
 interface CloudSyncModalProps {
@@ -10,77 +10,44 @@ interface CloudSyncModalProps {
   onSyncComplete?: (count: number) => void
 }
 
-const SUPABASE_SQL_SETUP = `-- 1. Table des cours HDV partagés KamaCraft
-create table if not exists public.market_prices (
-  server_id text not null,
-  item_ankama_id bigint not null,
-  price bigint not null,
-  item_name text,
-  updated_at timestamptz default now(),
-  source text default 'community',
-  author text default 'Artisan',
-  primary key (server_id, item_ankama_id)
-);
-
--- 2. Activer la sécurité RLS
-alter table public.market_prices enable row level security;
-
--- 3. Politique d'accès public en lecture et écriture
-create policy "Accès public KamaCraft"
-on public.market_prices
-for all
-using (true)
-with check (true);
-
--- 4. Activer la synchronisation en temps réel (Realtime)
-alter publication supabase_realtime add table public.market_prices;
-`
-
 export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
   isOpen,
   onClose,
   currentServer,
   onSyncComplete
 }) => {
-  const [urlInput, setUrlInput] = useState(supabaseService.getSupabaseUrl())
-  const [keyInput, setKeyInput] = useState(supabaseService.getSupabaseKey())
-  const [copiedSql, setCopiedSql] = useState(false)
+  const [urlInput, setUrlInput] = useState(tursoService.getTursoUrl())
+  const [tokenInput, setTokenInput] = useState(tursoService.getTursoToken())
   const [isSyncing, setIsSyncing] = useState(false)
   const [syncStatusMessage, setSyncStatusMessage] = useState<string | null>(null)
-  const [isConfigured, setIsConfigured] = useState(supabaseService.isConfigured())
+  const [isConfigured, setIsConfigured] = useState(tursoService.isConfigured())
 
   if (!isOpen) return null
 
-  const handleCopySql = () => {
-    navigator.clipboard.writeText(SUPABASE_SQL_SETUP)
-    setCopiedSql(true)
-    setTimeout(() => setCopiedSql(false), 2000)
-  }
-
   const handleSaveConfig = async (e: React.FormEvent) => {
     e.preventDefault()
-    const success = supabaseService.saveConfig(urlInput, keyInput)
+    const success = tursoService.saveConfig(urlInput, tokenInput)
     setIsConfigured(success)
 
     if (success) {
-      setSyncStatusMessage('Configuration validée ! Synchronisation en cours...')
+      setSyncStatusMessage('Connexion à Turso réussie ! Initialisation...')
       setIsSyncing(true)
       marketSyncService.initServerSync(currentServer)
       const count = await marketSyncService.syncFromCloud(currentServer)
       setIsSyncing(false)
-      setSyncStatusMessage(`Synchronisation réussie (${count} cours récupérés)`)
+      setSyncStatusMessage(`Connecté avec succès ! ${count} cours synchronisés depuis le Cloud.`)
       if (onSyncComplete) onSyncComplete(count)
     } else {
-      setSyncStatusMessage('Veuillez renseigner une URL et une clé valides.')
+      setSyncStatusMessage('Veuillez renseigner une URL de base Turso et un Token valides.')
     }
   }
 
   const handleManualSyncNow = async () => {
     setIsSyncing(true)
-    setSyncStatusMessage('Synchronisation des cours depuis le Cloud...')
+    setSyncStatusMessage('Synchronisation des cours depuis Turso...')
     const count = await marketSyncService.syncFromCloud(currentServer)
     setIsSyncing(false)
-    setSyncStatusMessage(`${count} cours actualisés depuis le Cloud !`)
+    setSyncStatusMessage(`${count} cours actualisés depuis Turso !`)
     if (onSyncComplete) onSyncComplete(count)
   }
 
@@ -93,7 +60,7 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
             <Cloud className={`w-5 h-5 ${isConfigured ? 'text-emerald-400' : 'text-slate-400'}`} />
             <div>
               <h2 className="text-base font-bold text-white font-dofus">
-                Synchronisation Cloud Communautaire
+                Synchronisation Cloud Communautaire (Turso)
               </h2>
               <p className="text-xs text-slate-400">
                 Partagez et recevez les cours HDV en direct avec tous les joueurs de votre serveur.
@@ -114,7 +81,7 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
           <div className="flex items-center gap-2 text-xs">
             <span className={`w-2.5 h-2.5 rounded-full ${isConfigured ? 'bg-emerald-400' : 'bg-slate-500'}`} />
             <span className="font-semibold text-white">
-              {isConfigured ? 'Cloud Supabase Actif' : 'Mode Local (Non connecté au Cloud)'}
+              {isConfigured ? 'Cloud Turso Connecté' : 'Mode Local (Non connecté au Cloud)'}
             </span>
             <span className="text-slate-400 font-mono">• Serveur : {currentServer}</span>
           </div>
@@ -127,7 +94,7 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
               className="px-2.5 py-1 bg-[#232730] hover:bg-[#353b47] text-yellow-400 text-xs font-semibold rounded flex items-center gap-1.5 transition"
             >
               <RefreshCw className={`w-3 h-3 ${isSyncing ? 'animate-spin' : ''}`} />
-              <span>Synchroniser</span>
+              <span>Actualiser</span>
             </button>
           )}
         </div>
@@ -138,28 +105,30 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
           </div>
         )}
 
-        {/* Setup Guide */}
+        {/* Turso Advantages & Setup */}
         <div className="space-y-3 text-xs text-slate-300">
           <div className="p-3 bg-[#0c0e12] rounded-lg border border-[#232730] space-y-2">
             <h4 className="font-bold text-white uppercase text-[11px] tracking-wider flex items-center gap-1.5">
               <Database className="w-3.5 h-3.5 text-yellow-400" />
-              Configuration en 2 minutes (100% Gratuit)
+              Pourquoi Turso ?
             </h4>
-            <ol className="list-decimal pl-4 space-y-1.5 text-slate-400">
-              <li>Créez un projet gratuit sur <a href="https://supabase.com" target="_blank" rel="noreferrer" className="text-yellow-400 underline font-semibold">supabase.com</a>.</li>
-              <li>Allez dans le menu <strong>SQL Editor</strong> et collez le script ci-dessous :</li>
-            </ol>
+            <ul className="space-y-1 text-slate-400 list-disc pl-4 text-[11px]">
+              <li><strong>500 bases de données gratuites</strong> (pas de limite à 2 projets).</li>
+              <li><strong>Ne se met JAMAIS en pause</strong> (reste allumé 24h/24, 365j/an).</li>
+              <li><strong>Création de table 100% automatique</strong> : vous n'avez aucun script SQL à taper, KamaCraft initialise la table tout seul.</li>
+            </ul>
 
-            <div className="flex items-center justify-between pt-1">
-              <span className="text-[11px] text-slate-400 font-mono">Script SQL de la table KamaCraft</span>
-              <button
-                type="button"
-                onClick={handleCopySql}
-                className="px-2.5 py-1 bg-[#232730] hover:bg-[#353b47] text-white font-medium rounded text-[11px] flex items-center gap-1 transition"
+            <div className="pt-1.5 border-t border-[#1f242e] flex items-center justify-between">
+              <span className="text-[11px] text-slate-400">Créer une base gratuite sur Turso :</span>
+              <a
+                href="https://turso.tech"
+                target="_blank"
+                rel="noreferrer"
+                className="px-2.5 py-1 bg-[#232730] hover:bg-[#353b47] text-yellow-400 font-medium rounded text-[11px] flex items-center gap-1 transition"
               >
-                {copiedSql ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3 text-slate-300" />}
-                <span>{copiedSql ? 'Copié !' : 'Copier le script SQL'}</span>
-              </button>
+                <span>Ouvrir Turso.tech</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
             </div>
           </div>
 
@@ -167,26 +136,26 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
           <form onSubmit={handleSaveConfig} className="space-y-3 pt-1">
             <div>
               <label className="block text-[11px] font-semibold text-slate-400 mb-1">
-                Supabase Project URL
+                Turso Database URL
               </label>
               <input
                 type="text"
                 value={urlInput}
                 onChange={(e) => setUrlInput(e.target.value)}
-                placeholder="https://xyzcompany.supabase.co"
+                placeholder="libsql://kamacraft-votrecompte.turso.io"
                 className="w-full px-3 py-1.5 bg-[#0c0e12] border border-[#232730] rounded-lg text-xs font-mono text-white placeholder-slate-600 focus:border-yellow-500 outline-none"
               />
             </div>
 
             <div>
               <label className="block text-[11px] font-semibold text-slate-400 mb-1">
-                Supabase Anon Public API Key
+                Turso Auth Token
               </label>
               <input
                 type="password"
-                value={keyInput}
-                onChange={(e) => setKeyInput(e.target.value)}
-                placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                value={tokenInput}
+                onChange={(e) => setTokenInput(e.target.value)}
+                placeholder="eyJhbGciOiJFZERTQSI..."
                 className="w-full px-3 py-1.5 bg-[#0c0e12] border border-[#232730] rounded-lg text-xs font-mono text-white placeholder-slate-600 focus:border-yellow-500 outline-none"
               />
             </div>
@@ -204,7 +173,7 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
                 className="px-4 py-1.5 bg-yellow-500 hover:bg-yellow-400 text-slate-950 font-bold rounded-lg text-xs flex items-center gap-1 transition"
               >
                 <Check className="w-3.5 h-3.5" />
-                <span>Enregistrer & Activer le Cloud</span>
+                <span>Enregistrer & Activer Turso</span>
               </button>
             </div>
           </form>

@@ -13,7 +13,7 @@ import { ServerSelectModal } from './components/ServerSelectModal'
 import { HDVPurchaseModal } from './components/HDVPurchaseModal'
 import { CrushItemModal } from './components/CrushItemModal'
 import { CloudSyncModal } from './components/CloudSyncModal'
-import { supabaseService } from './services/supabaseService'
+import { tursoService } from './services/tursoService'
 import { marketSyncService } from './services/marketSyncService'
 import { DofusItem, StockItem } from './types'
 
@@ -70,7 +70,7 @@ export function App() {
   const [isCrushModalOpen, setIsCrushModalOpen] = useState(false)
   const [itemToCrush, setItemToCrush] = useState<StockItem | null>(null)
   const [isCloudModalOpen, setIsCloudModalOpen] = useState(false)
-  const [isCloudActive, setIsCloudActive] = useState(() => supabaseService.isConfigured())
+  const [isCloudActive, setIsCloudActive] = useState(() => tursoService.isConfigured())
 
   // Initialize server sync with cloud on mount or server change
   useEffect(() => {
@@ -277,16 +277,16 @@ export function App() {
         onRecordCrush={recordCrush}
       />
 
-      {/* Cloud Sync Configuration Modal */}
+      {/* Cloud Sync Configuration Modal (Turso) */}
       <CloudSyncModal
         isOpen={isCloudModalOpen}
         onClose={() => {
           setIsCloudModalOpen(false)
-          setIsCloudActive(supabaseService.isConfigured())
+          setIsCloudActive(tursoService.isConfigured())
         }}
         currentServer={currentServer}
         onSyncComplete={() => {
-          setIsCloudActive(supabaseService.isConfigured())
+          setIsCloudActive(tursoService.isConfigured())
         }}
       />
 

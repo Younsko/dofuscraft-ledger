@@ -1,12 +1,12 @@
 import { MarketPriceEntry } from '../types'
-import { supabaseService } from './supabaseService'
+import { tursoService } from './tursoService'
 
 const BROADCAST_CHANNEL_NAME = 'kamacraft_market_prices_v1'
 
 class MarketSyncService {
   private channel: BroadcastChannel | null = null
   private listeners: Set<(entry: MarketPriceEntry) => void> = new Set()
-  private cloudUnsubscribe: (() => void) | null = null
+  private syncIntervalId: any = null
   private activeServer: string = ''
 
   constructor() {
@@ -45,47 +45,39 @@ class MarketSyncService {
   }
 
   /**
-   * Initialize cloud subscription & sync for a specific server
+   * Initialize Turso cloud sync for a specific server
    */
   public initServerSync(serverId: string) {
-    if (this.activeServer === serverId.toLowerCase() && this.cloudUnsubscribe) {
-      return
-    }
-
     this.activeServer = serverId.toLowerCase()
 
-    if (this.cloudUnsubscribe) {
-      this.cloudUnsubscribe()
-      this.cloudUnsubscribe = null
+    if (this.syncIntervalId) {
+      clearInterval(this.syncIntervalId)
+      this.syncIntervalId = null
     }
 
-    // Subscribe to cloud Realtime changes
-    if (supabaseService.isConfigured()) {
-      this.cloudUnsubscribe = supabaseService.subscribeToServer(serverId, (entry) => {
-        const current = this.loadPricesForServer(serverId)
-        const existing = current[entry.item_ankama_id]
-
-        // Only update if newer or not present
-        if (!existing || new Date(entry.updated_at).getTime() >= new Date(existing.updated_at).getTime()) {
-          current[entry.item_ankama_id] = entry
-          this.savePricesForServer(serverId, current)
-          this.notifyListeners(entry)
-        }
-      })
-
-      // Fetch all server prices from cloud in background
+    if (tursoService.isConfigured()) {
+      // 1. Immediate sync on start/switch
       this.syncFromCloud(serverId)
+
+      // 2. Periodic sync every 45s if window is active
+      if (typeof window !== 'undefined') {
+        this.syncIntervalId = setInterval(() => {
+          if (document.visibilityState === 'visible' && this.activeServer) {
+            this.syncFromCloud(this.activeServer)
+          }
+        }, 45000)
+      }
     }
   }
 
   /**
-   * Fetch complete server price book from cloud and merge with local storage
+   * Fetch complete server price book from Turso and merge with local storage
    */
   public async syncFromCloud(serverId: string): Promise<number> {
-    if (!supabaseService.isConfigured()) return 0
+    if (!tursoService.isConfigured()) return 0
 
     try {
-      const cloudPrices = await supabaseService.fetchServerPrices(serverId)
+      const cloudPrices = await tursoService.fetchServerPrices(serverId)
       if (cloudPrices.length === 0) return 0
 
       const current = this.loadPricesForServer(serverId)
@@ -148,7 +140,7 @@ class MarketSyncService {
   }
 
   /**
-   * Publish a single price update to local, cross-tab, and Cloud Supabase
+   * Publish a single price update to local, cross-tab, and Turso Cloud
    */
   public publishPrice(
     serverId: string,
@@ -182,9 +174,9 @@ class MarketSyncService {
       }
     }
 
-    // 3. Push to Cloud Supabase
-    if (supabaseService.isConfigured()) {
-      supabaseService.upsertPrice(entry).catch(err => console.warn('Cloud sync error:', err))
+    // 3. Push to Turso Cloud
+    if (tursoService.isConfigured()) {
+      tursoService.upsertPrice(entry).catch(err => console.warn('Turso sync error:', err))
     }
 
     this.notifyListeners(entry)
@@ -229,9 +221,9 @@ class MarketSyncService {
 
     this.savePricesForServer(serverId, current)
 
-    // Push batch to Cloud Supabase
-    if (supabaseService.isConfigured() && entriesToSync.length > 0) {
-      supabaseService.upsertMultiplePrices(entriesToSync).catch(err => console.warn('Cloud batch error:', err))
+    // Push batch to Turso Cloud
+    if (tursoService.isConfigured() && entriesToSync.length > 0) {
+      tursoService.upsertMultiplePrices(entriesToSync).catch(err => console.warn('Turso batch error:', err))
     }
 
     return current
