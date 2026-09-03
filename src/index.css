@@ -38,23 +38,45 @@ input[type="number"] {
   appearance: textfield !important;
 }
 
-/* Custom sleek scrollbars */
-::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+/* Sleek dark scrollbars everywhere (Cross-browser W3C + WebKit) */
+* {
+  scrollbar-width: thin !important;
+  scrollbar-color: #2b313d #0c0e12 !important;
 }
 
-::-webkit-scrollbar-track {
-  background: #0c0e12;
+::-webkit-scrollbar,
+*::-webkit-scrollbar {
+  width: 6px !important;
+  height: 6px !important;
 }
 
-::-webkit-scrollbar-thumb {
-  background: #232730;
-  border-radius: 2px;
+::-webkit-scrollbar-track,
+*::-webkit-scrollbar-track {
+  background: #0c0e12 !important;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: #353b47;
+::-webkit-scrollbar-thumb,
+*::-webkit-scrollbar-thumb {
+  background: #2b313d !important;
+  border-radius: 4px !important;
+  border: 1px solid #0c0e12 !important;
+}
+
+::-webkit-scrollbar-thumb:hover,
+*::-webkit-scrollbar-thumb:hover {
+  background: #414958 !important;
+}
+
+::-webkit-scrollbar-corner,
+*::-webkit-scrollbar-corner {
+  background: #0c0e12 !important;
+}
+
+::-webkit-scrollbar-button,
+*::-webkit-scrollbar-button {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
 }
 
 /* Terminal Solid Card */

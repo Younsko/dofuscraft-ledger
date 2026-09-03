@@ -23,6 +23,7 @@ import { DofusItem, PurchaseBatch } from '../types'
 import { searchDofusItems, getPreloadedCatalog } from '../services/dofusApi'
 import { parseDofusChatText, performOCROnImage } from '../services/dofusChatParser'
 import { formatKamas, parseKamaInput } from '../utils/formatters'
+import { getItemIconUrl, handleItemImageError } from '../utils/itemImage'
 
 interface FastHDVIndexerProps {
   onAddMultipleBatches: (batches: Array<Omit<PurchaseBatch, 'id' | 'remaining_quantity'>>) => void
@@ -505,12 +506,10 @@ export const FastHDVIndexer: React.FC<FastHDVIndexerProps> = ({
                     title={`${item.name} (Niv. ${item.level}) - Cliquer pour ajouter`}
                   >
                     <img
-                      src={item.image_urls?.icon}
+                      src={getItemIconUrl(item)}
                       alt={item.name}
                       className="w-8 h-8 object-contain group-hover:scale-110 transition"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = 'https://api.dofusdu.de/dofus3/v1/img/item/0-64.png'
-                      }}
+                      onError={(e) => handleItemImageError(e, item.ankama_id)}
                     />
                     <p className="text-[10px] font-bold text-white group-hover:text-yellow-400 truncate w-full mt-1">
                       {item.name}
@@ -532,9 +531,10 @@ export const FastHDVIndexer: React.FC<FastHDVIndexerProps> = ({
                     className="p-2 bg-[#0d1117] hover:bg-[#21262d] border border-[#30363d] hover:border-yellow-500 rounded-xl flex items-center gap-2 text-left transition group active:scale-98"
                   >
                     <img
-                      src={item.image_urls?.icon}
+                      src={getItemIconUrl(item)}
                       alt={item.name}
                       className="w-8 h-8 object-contain shrink-0 group-hover:scale-105 transition"
+                      onError={(e) => handleItemImageError(e, item.ankama_id)}
                     />
                     <div className="overflow-hidden">
                       <p className="text-[11px] font-bold text-white group-hover:text-yellow-400 truncate">
@@ -558,7 +558,12 @@ export const FastHDVIndexer: React.FC<FastHDVIndexerProps> = ({
                     className="w-full p-2 bg-[#0d1117] hover:bg-[#21262d] border border-[#30363d] hover:border-yellow-500 rounded-xl flex items-center justify-between text-left transition group"
                   >
                     <div className="flex items-center gap-2.5">
-                      <img src={item.image_urls?.icon} alt={item.name} className="w-7 h-7 object-contain" />
+                      <img
+                        src={getItemIconUrl(item)}
+                        alt={item.name}
+                        className="w-7 h-7 object-contain"
+                        onError={(e) => handleItemImageError(e, item.ankama_id)}
+                      />
                       <div>
                         <span className="text-xs font-bold text-white group-hover:text-yellow-400">
                           {item.name}
@@ -714,12 +719,10 @@ export const FastHDVIndexer: React.FC<FastHDVIndexerProps> = ({
                     <div className="flex items-center gap-2.5 min-w-[180px]">
                       <span className="text-[10px] font-mono text-slate-600">#{idx + 1}</span>
                       <img
-                        src={row.item.image_urls?.icon}
+                        src={getItemIconUrl(row.item)}
                         alt={row.item.name}
                         className="w-8 h-8 object-contain shrink-0"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src = 'https://api.dofusdu.de/dofus3/v1/img/item/0-64.png'
-                        }}
+                        onError={(e) => handleItemImageError(e, row.item.ankama_id)}
                       />
                       <div className="overflow-hidden">
                         <p className="text-xs font-bold text-white truncate">{row.item.name}</p>

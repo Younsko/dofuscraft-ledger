@@ -2,6 +2,7 @@ import { DofusItem, DofusRecipeIngredient } from '../types'
 import { DOFUS_RUNES, runeToDofusItem } from '../data/runesData'
 import { POPULAR_ITEMS } from '../data/popularItems'
 import { getAllItemsFromDb, saveItemsToDb } from './catalogDb'
+import { getItemIconUrl } from '../utils/itemImage'
 
 const BASE_URL = 'https://api.dofusdu.de/dofus3/v1/fr'
 
@@ -105,7 +106,10 @@ export async function preloadAllCatalogs(): Promise<void> {
         name: it.name,
         type: it.type || { id: 0, name: cat === 'equipment' ? 'Équipement' : cat === 'resources' ? 'Ressource' : 'Consommable' },
         level: it.level || 1,
-        image_urls: it.image_urls || { icon: `https://api.dofusdu.de/dofus3/v1/img/item/${it.ankama_id}-64.png` },
+        image_urls: {
+          icon: getItemIconUrl(it),
+          sd: getItemIconUrl(it)
+        },
         recipe: it.recipe || undefined,
         description: it.description || '',
         category: cat
@@ -256,7 +260,10 @@ export async function searchDofusItems(
           name: item.name,
           type: item.type || { id: 0, name: 'Item' },
           level: item.level || 1,
-          image_urls: item.image_urls || { icon: `https://api.dofusdu.de/dofus3/v1/img/item/${item.ankama_id}-64.png` },
+          image_urls: {
+            icon: getItemIconUrl(item),
+            sd: getItemIconUrl(item)
+          },
           recipe: item.recipe || undefined,
           description: item.description || '',
           category: ep.cat,
@@ -322,7 +329,10 @@ export async function fetchItemById(ankama_id: number, subtype = 'equipment'): P
           name: item.name,
           type: item.type || { id: 0, name: 'Item' },
           level: item.level || 1,
-          image_urls: item.image_urls || { icon: `https://api.dofusdu.de/dofus3/v1/img/item/${item.ankama_id}-64.png` },
+          image_urls: {
+            icon: getItemIconUrl(item),
+            sd: getItemIconUrl(item)
+          },
           recipe: item.recipe || undefined,
           description: item.description || '',
           effects: item.effects,
@@ -356,7 +366,7 @@ export async function enrichRecipeIngredients(recipe: DofusRecipeIngredient[]): 
       return {
         ...ing,
         item_name: cached?.name || `Ressource #${ing.item_ankama_id}`,
-        item_icon: cached?.image_urls?.icon || `https://api.dofusdu.de/dofus3/v1/img/item/${ing.item_ankama_id}-64.png`
+        item_icon: cached ? getItemIconUrl(cached) : getItemIconUrl({ ankama_id: ing.item_ankama_id })
       }
     })
   )

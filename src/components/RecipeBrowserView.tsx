@@ -17,6 +17,7 @@ import { DofusItem, StockItem, DofusRecipeIngredient, MarketPriceEntry, PriceDat
 import { getPreloadedCatalog, fetchItemById, enrichRecipeIngredients, onCatalogUpdate } from '../services/dofusApi'
 import { formatKamas, calculateTheoreticalCraftCost } from '../utils/formatters'
 import { formatMarketRelativeTime } from '../services/marketSyncService'
+import { getItemIconUrl, handleItemImageError } from '../utils/itemImage'
 
 interface RecipeBrowserViewProps {
   stockItems: StockItem[]
@@ -474,13 +475,11 @@ export const RecipeBrowserView: React.FC<RecipeBrowserViewProps> = ({
                   {/* Image & Badges */}
                   <div className="relative w-full aspect-square bg-[#0c0e12] rounded-lg border border-[#1f242e] flex items-center justify-center p-2 mb-2">
                     <img
-                      src={item.image_urls?.icon}
+                      src={getItemIconUrl(item)}
                       alt={item.name}
                       className="w-12 h-12 object-contain group-hover:scale-105 transition"
                       loading="lazy"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = 'https://api.dofusdu.de/dofus3/v1/img/item/0-64.png'
-                      }}
+                      onError={(e) => handleItemImageError(e, item.ankama_id)}
                     />
 
                     {/* Stock Indicator */}
@@ -603,9 +602,10 @@ export const RecipeBrowserView: React.FC<RecipeBrowserViewProps> = ({
 
             <div className="flex items-center gap-3">
               <img
-                src={editingPriceItem.image_urls?.icon}
+                src={getItemIconUrl(editingPriceItem)}
                 alt={editingPriceItem.name}
                 className="w-10 h-10 object-contain p-1 bg-[#0c0e12] border border-[#232730] rounded-lg"
+                onError={(e) => handleItemImageError(e, editingPriceItem.ankama_id)}
               />
               <div className="truncate">
                 <p className="font-bold text-xs text-white truncate">{editingPriceItem.name}</p>
@@ -663,9 +663,10 @@ export const RecipeBrowserView: React.FC<RecipeBrowserViewProps> = ({
             <div className="flex items-center justify-between pb-3 border-b border-[#232730]">
               <div className="flex items-center gap-3 min-w-0">
                 <img
-                  src={selectedItemDetail.image_urls?.icon}
+                  src={getItemIconUrl(selectedItemDetail)}
                   alt={selectedItemDetail.name}
                   className="w-12 h-12 object-contain p-1.5 bg-[#0c0e12] border border-[#232730] rounded-xl shrink-0"
+                  onError={(e) => handleItemImageError(e, selectedItemDetail.ankama_id)}
                 />
                 <div className="truncate">
                   <h3 className="text-base font-bold text-white truncate">{selectedItemDetail.name}</h3>
@@ -727,9 +728,10 @@ export const RecipeBrowserView: React.FC<RecipeBrowserViewProps> = ({
                       <div key={ing.item_ankama_id} className="p-2.5 flex items-center justify-between text-xs">
                         <div className="flex items-center gap-2.5 min-w-0">
                           <img
-                            src={ing.item_icon}
+                            src={getItemIconUrl({ image_urls: { icon: ing.item_icon }, ankama_id: ing.item_ankama_id })}
                             alt={ing.item_name}
                             className="w-7 h-7 object-contain shrink-0"
+                            onError={(e) => handleItemImageError(e, ing.item_ankama_id)}
                           />
                           <div className="truncate">
                             <span className="font-bold text-white truncate block">{ing.item_name}</span>
