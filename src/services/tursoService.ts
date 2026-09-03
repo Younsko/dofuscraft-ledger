@@ -1,8 +1,8 @@
 import { createClient, Client } from '@libsql/client/web'
 import { MarketPriceEntry } from '../types'
 
-const STORAGE_URL_KEY = 'kamacraft_turso_url_v1'
-const STORAGE_TOKEN_KEY = 'kamacraft_turso_token_v1'
+const TURSO_URL = (import.meta.env.VITE_TURSO_DATABASE_URL as string) || 'libsql://kamacraft-db-younsko.aws-eu-west-1.turso.io'
+const TURSO_TOKEN = (import.meta.env.VITE_TURSO_AUTH_TOKEN as string) || 'eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3ODg0MjYzOTMsImlkIjoiMDFhMDY2ODQtZGYwMS03MTY2LTg1YzUtYzg5NjNkZmNmMzQzIiwia2lkIjoiQTBRTHlCRVhNYkhPVG1tREpadzJtcUxKcDdiT0lKa3ExTkdiUnN6X1B3RSIsInJpZCI6IjE0MzI4NGIyLTg3NzAtNGJmNC1iOGU5LTVjOGUyMGZhZWJmZiJ9.FFhn4AovEK7B5u4qI3XwMAKVWcSuiMukGOk_pSWoKTLUfncj3kRtbSTMXG3rj5pgsLBJrJ0c00loX0-AeRv0DA'
 
 class TursoService {
   private client: Client | null = null
@@ -13,13 +13,9 @@ class TursoService {
   }
 
   public initClient(): boolean {
-    const rawUrl = this.getTursoUrl()
-    const token = this.getTursoToken()
-
-    if (rawUrl && token) {
+    if (TURSO_URL && TURSO_TOKEN) {
       try {
-        // Ensure https or libsql scheme
-        let cleanUrl = rawUrl.trim()
+        let cleanUrl = TURSO_URL.trim()
         if (cleanUrl.startsWith('libsql://')) {
           cleanUrl = cleanUrl.replace('libsql://', 'https://')
         }
@@ -29,7 +25,7 @@ class TursoService {
 
         this.client = createClient({
           url: cleanUrl,
-          authToken: token.trim()
+          authToken: TURSO_TOKEN.trim()
         })
 
         // Auto-initialize schema in background
@@ -48,38 +44,6 @@ class TursoService {
 
   public isConfigured(): boolean {
     return this.client !== null
-  }
-
-  public getTursoUrl(): string {
-    return (
-      (typeof window !== 'undefined' ? localStorage.getItem(STORAGE_URL_KEY) : '') ||
-      (import.meta.env.VITE_TURSO_DATABASE_URL as string) ||
-      'libsql://kamacraft-db-younsko.aws-eu-west-1.turso.io'
-    )
-  }
-
-  public getTursoToken(): string {
-    return (
-      (typeof window !== 'undefined' ? localStorage.getItem(STORAGE_TOKEN_KEY) : '') ||
-      (import.meta.env.VITE_TURSO_AUTH_TOKEN as string) ||
-      'eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3ODg0MjYzOTMsImlkIjoiMDFhMDY2ODQtZGYwMS03MTY2LTg1YzUtYzg5NjNkZmNmMzQzIiwia2lkIjoiQTBRTHlCRVhNYkhPVG1tREpadzJtcUxKcDdiT0lKa3ExTkdiUnN6X1B3RSIsInJpZCI6IjE0MzI4NGIyLTg3NzAtNGJmNC1iOGU5LTVjOGUyMGZhZWJmZiJ9.FFhn4AovEK7B5u4qI3XwMAKVWcSuiMukGOk_pSWoKTLUfncj3kRtbSTMXG3rj5pgsLBJrJ0c00loX0-AeRv0DA'
-    )
-  }
-
-  public saveConfig(url: string, token: string): boolean {
-    const cleanUrl = url.trim()
-    const cleanToken = token.trim()
-
-    if (cleanUrl && cleanToken) {
-      localStorage.setItem(STORAGE_URL_KEY, cleanUrl)
-      localStorage.setItem(STORAGE_TOKEN_KEY, cleanToken)
-    } else {
-      localStorage.removeItem(STORAGE_URL_KEY)
-      localStorage.removeItem(STORAGE_TOKEN_KEY)
-    }
-
-    this.isTableInitialized = false
-    return this.initClient()
   }
 
   /**
