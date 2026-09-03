@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useCraftStore } from './store/useCraftStore'
 import { Navbar } from './components/Navbar'
 import { FastHDVIndexer } from './components/FastHDVIndexer'
@@ -66,6 +66,16 @@ export function App() {
   const [preselectedHDVQty, setPreselectedHDVQty] = useState<number>(100)
   const [isCrushModalOpen, setIsCrushModalOpen] = useState(false)
   const [itemToCrush, setItemToCrush] = useState<StockItem | null>(null)
+
+  // Track pageviews in GoatCounter for SPA tab switches
+  useEffect(() => {
+    if (typeof window !== 'undefined' && (window as any).goatcounter && typeof (window as any).goatcounter.count === 'function') {
+      (window as any).goatcounter.count({
+        path: `/${activeTab}`,
+        title: `KamaCraft - ${activeTab}`
+      })
+    }
+  }, [activeTab])
 
   const handleOpenHDVModal = (item?: DofusItem, defaultQty?: number) => {
     if (item) {
